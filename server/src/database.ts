@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
@@ -7,10 +7,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const DB_PATH = process.env.DB_PATH || './barbershop.db';
-const db = new Database(path.resolve(DB_PATH));
+const db = new DatabaseSync(path.resolve(DB_PATH));
 
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+db.exec('PRAGMA journal_mode=WAL');
+db.exec('PRAGMA foreign_keys=ON');
 
 export function initializeDatabase() {
   db.exec(`

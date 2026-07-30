@@ -24,8 +24,12 @@ export default function AdminLogin() {
       localStorage.setItem('admin_token', res.token);
       localStorage.setItem('admin_user', JSON.stringify(res.user));
       navigate('/admin/dashboard');
-    } catch {
-      toast.error('Invalid username or password');
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        toast.error('Invalid username or password');
+      } else {
+        toast.error('Cannot reach server — make sure the server is running on port 5000.');
+      }
     } finally {
       setLoading(false);
     }
