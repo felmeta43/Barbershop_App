@@ -11,7 +11,7 @@ const appointmentSchema = z.object({
   customer_name: z.string().min(1),
   customer_phone: z.string().min(9),
   customer_email: z.string().email().optional().or(z.literal('')),
-  barber_id: z.string().uuid().optional(),
+  barber_id: z.preprocess(v => (v === '' ? undefined : v), z.string().uuid().optional()),
   service_id: z.string().uuid(),
   appointment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   appointment_time: z.string().regex(/^\d{2}:\d{2}$/),
