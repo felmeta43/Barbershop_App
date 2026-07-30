@@ -7,10 +7,14 @@ import { Appointment } from '../../lib/types';
 
 const STATUS_OPTIONS = ['pending', 'confirmed', 'in-progress', 'completed', 'cancelled', 'no-show'];
 
+function localDateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function Appointments() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+  const [dateFilter, setDateFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
   const { data: appointments = [], isLoading } = useQuery<Appointment[]>({
@@ -39,6 +43,16 @@ export default function Appointments() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
+        <button
+          onClick={() => setDateFilter(localDateStr())}
+          className={`text-sm px-4 py-2 rounded-xl border transition-colors ${
+            dateFilter === localDateStr()
+              ? 'bg-barber-500 text-dark-900 border-barber-500 font-bold'
+              : 'text-gray-400 hover:text-white border-dark-600 hover:border-dark-500'
+          }`}
+        >
+          Today
+        </button>
         <input
           type="date"
           value={dateFilter}
@@ -59,14 +73,18 @@ export default function Appointments() {
           onClick={() => { setDateFilter(''); setStatusFilter(''); }}
           className="text-gray-400 hover:text-white text-sm px-3 py-2 rounded-lg border border-dark-600 hover:border-dark-500 transition-colors"
         >
-          Clear
+          All dates
         </button>
       </div>
 
       {isLoading ? (
         <div className="text-center py-12 text-gray-500">{t('common.loading')}</div>
       ) : appointments.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">{t('queue.empty')}</div>
+        <div className="text-center py-12 text-gray-500">
+          {dateFilter
+            ? `No appointments on ${dateFilter}`
+            : 'No appointments found'}
+        </div>
       ) : (
         <div className="bg-dark-700 rounded-2xl border border-dark-600 overflow-hidden">
           <div className="overflow-x-auto">

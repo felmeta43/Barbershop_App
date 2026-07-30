@@ -32,6 +32,12 @@ function getDayName(dateStr: string) {
   return days[new Date(dateStr + 'T00:00:00').getDay()];
 }
 
+function localDateStr(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const STEPS = ['service', 'barber', 'datetime', 'details', 'confirm'] as const;
 type Step = typeof STEPS[number];
 
@@ -89,7 +95,7 @@ export default function Booking() {
 
   // Max bookable date
   const maxDate = shop?.advance_booking_days
-    ? new Date(Date.now() + shop.advance_booking_days * 86400000).toISOString().split('T')[0]
+    ? localDateStr(shop.advance_booking_days)
     : undefined;
 
   const getServiceName = (s: Service) =>
@@ -308,7 +314,7 @@ export default function Booking() {
                   <input
                     type="date"
                     value={data.appointment_date}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={localDateStr()}
                     max={maxDate}
                     onChange={(e) => setData((d) => ({ ...d, appointment_date: e.target.value, appointment_time: '' }))}
                     className="w-full bg-dark-600 border border-dark-500 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-barber-500"

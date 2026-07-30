@@ -3,10 +3,15 @@ import db from '../database';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { sendQueueCallNotification } from '../services/smsService';
 
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const router = Router();
 
 router.get('/today', (_req: Request, res: Response) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localToday();
   const queue = db.prepare(`
     SELECT q.*, a.customer_name, a.customer_phone, a.appointment_time,
            a.status as appointment_status, a.payment_status,
@@ -23,7 +28,7 @@ router.get('/today', (_req: Request, res: Response) => {
 });
 
 router.get('/stats', (_req: Request, res: Response) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localToday();
   const stats = db.prepare(`
     SELECT
       COUNT(*) as total,
