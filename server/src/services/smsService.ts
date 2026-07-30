@@ -1,25 +1,41 @@
 import dotenv from 'dotenv';
+import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../database';
 
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
 const AT_API_KEY = process.env.AT_API_KEY || '';
 const AT_USERNAME = process.env.AT_USERNAME || 'sandbox';
-const AT_SENDER_ID = process.env.AT_SENDER_ID || 'BarberShop';
+const AT_SENDER_ID = process.env.AT_SENDER_ID || '';
+
+// Normalize Ethiopian phone numbers to E.164 format (+2519XXXXXXXX)
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('2519') || digits.startsWith('2517')) return `+${digits}`;
+  if (digits.startsWith('09') || digits.startsWith('07')) return `+251${digits.slice(1)}`;
+  if (digits.startsWith('9') || digits.startsWith('7')) return `+251${digits}`;
+  if (digits.startsWith('251')) return `+${digits}`;
+  return phone; // already formatted or unknown format
+}
 
 async function sendAfricasTalking(to: string, message: string): Promise<boolean> {
+  if (!AT_API_KEY || AT_API_KEY === 'your_africastalking_api_key') {
+    console.warn('SMS skipped: AT_API_KEY not configured');
+    return false;
+  }
+
   try {
     const url = AT_USERNAME === 'sandbox'
       ? 'https://api.sandbox.africastalking.com/version1/messaging'
       : 'https://api.africastalking.com/version1/messaging';
 
-    const params = new URLSearchParams({
-      username: AT_USERNAME,
-      to,
-      message,
-      from: AT_SENDER_ID,
-    });
+    const normalizedTo = normalizePhone(to);
+    const params = new URLSearchParams({ username: AT_USERNAME, to: normalizedTo, message });
+    // Only include sender ID if explicitly set — unregistered IDs cause rejection on many operators
+    if (AT_SENDER_ID) params.set('from', AT_SENDER_ID);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -31,7 +47,13 @@ async function sendAfricasTalking(to: string, message: string): Promise<boolean>
       body: params.toString(),
     });
 
-    return response.ok;
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('SMS API error:', JSON.stringify(body));
+      return false;
+    }
+    console.log('SMS sent to', normalizedTo, JSON.stringify(body));
+    return true;
   } catch (err) {
     console.error('SMS send error:', err);
     return false;

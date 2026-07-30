@@ -14,6 +14,9 @@ import queueRoutes from './routes/queue';
 import paymentRoutes from './routes/payment';
 import settingsRoutes from './routes/settings';
 
+// Try server/.env first, then project root — works for both tsx and node dist/
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
 const app = express();

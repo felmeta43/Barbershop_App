@@ -1,5 +1,8 @@
 import dotenv from 'dotenv';
+import path from 'path';
 
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
 const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || '';
@@ -17,6 +20,10 @@ export async function initializeChapaPayment(params: {
   callbackUrl: string;
   description: string;
 }) {
+  if (!CHAPA_SECRET_KEY || CHAPA_SECRET_KEY.includes('your_chapa')) {
+    throw new Error('CHAPA_SECRET_KEY is not configured in .env');
+  }
+
   const response = await fetch(`${CHAPA_BASE_URL}/transaction/initialize`, {
     method: 'POST',
     headers: {
@@ -43,6 +50,7 @@ export async function initializeChapaPayment(params: {
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
+    console.error('Chapa init error:', JSON.stringify(err));
     throw new Error((err as any)?.message || 'Chapa payment initialization failed');
   }
 
@@ -54,24 +62,23 @@ export async function initializeChapaPayment(params: {
 }
 
 export async function verifyChapaPayment(txRef: string) {
+  if (!CHAPA_SECRET_KEY || CHAPA_SECRET_KEY.includes('your_chapa')) {
+    throw new Error('CHAPA_SECRET_KEY is not configured in .env');
+  }
+
   const response = await fetch(`${CHAPA_BASE_URL}/transaction/verify/${txRef}`, {
-    headers: {
-      Authorization: `Bearer ${CHAPA_SECRET_KEY}`,
-    },
+    headers: { Authorization: `Bearer ${CHAPA_SECRET_KEY}` },
   });
 
   if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    console.error('Chapa verify error:', JSON.stringify(err));
     throw new Error('Payment verification failed');
   }
 
   return response.json() as Promise<{
     message: string;
     status: string;
-    data: {
-      status: string;
-      amount: number;
-      currency: string;
-      tx_ref: string;
-    };
+    data: { status: string; amount: number; currency: string; tx_ref: string };
   }>;
 }

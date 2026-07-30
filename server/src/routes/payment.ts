@@ -5,7 +5,6 @@ import db from '../database';
 import { initializeChapaPayment, verifyChapaPayment } from '../services/paymentService';
 
 const router = Router();
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 const initSchema = z.object({
   appointment_id: z.string().uuid(),
@@ -15,6 +14,11 @@ const initSchema = z.object({
 router.post('/initialize', async (req: Request, res: Response) => {
   try {
     const { appointment_id, email } = initSchema.parse(req.body);
+
+    // Detect the actual host the user is accessing from (works for IP:port, localhost, domain)
+    const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const baseUrl = process.env.CLIENT_URL || `${protocol}://${host}`;
 
     const appointment = db.prepare(`
       SELECT a.*, s.name as service_name, s.price as service_price
@@ -46,8 +50,8 @@ router.post('/initialize', async (req: Request, res: Response) => {
       lastName,
       phone: appointment.customer_phone,
       txRef,
-      returnUrl: `${CLIENT_URL}/payment/callback?tx_ref=${txRef}&appointment_id=${appointment_id}`,
-      callbackUrl: `${process.env.SERVER_URL || 'http://localhost:5000'}/api/payment/webhook`,
+      returnUrl: `${baseUrl}/payment/callback?tx_ref=${txRef}&appointment_id=${appointment_id}`,
+      callbackUrl: `${process.env.SERVER_URL || baseUrl}/api/payment/webhook`,
       description: `Barbershop - ${appointment.service_name}`,
     });
 
