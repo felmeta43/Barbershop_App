@@ -3,6 +3,19 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --barber-50:  254 249 236;
+    --barber-100: 254 240 199;
+    --barber-200: 254 215 90;
+    --barber-300: 254 201 53;
+    --barber-400: 254 182 10;
+    --barber-500: 232 155 0;
+    --barber-600: 204 122 0;
+    --barber-700: 163 88 0;
+    --barber-800: 134 68 0;
+    --barber-900: 113 58 0;
+  }
+
   * {
     -webkit-tap-highlight-color: transparent;
   }

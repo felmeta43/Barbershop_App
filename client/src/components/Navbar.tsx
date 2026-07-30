@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from './LanguageSwitcher';
+import { useShop } from '../context/ShopContext';
 
 export default function Navbar() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { shop, shopT } = useShop();
+  const lang = i18n.language;
   const location = useLocation();
   const [open, setOpen] = useState(false);
 
@@ -16,6 +19,7 @@ export default function Navbar() {
   ];
 
   const isActive = (to: string) => location.pathname === to;
+  const shopName = shopT('name', lang) || 'BarberShop';
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-800/95 backdrop-blur-sm border-b border-dark-600">
@@ -23,11 +27,20 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-barber-500 rounded-lg flex items-center justify-center">
-              <span className="text-dark-900 font-bold text-lg">✂</span>
+            <div className="w-8 h-8 bg-barber-500 rounded-lg flex items-center justify-center overflow-hidden">
+              {shop?.logo_url ? (
+                <img src={shop.logo_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-dark-900 font-bold text-lg">{shop?.logo_emoji || '✂'}</span>
+              )}
             </div>
             <span className="text-white font-bold text-lg tracking-wide">
-              Barber<span className="text-barber-400">Shop</span>
+              {shopName.length > 8 ? shopName : (
+                <>
+                  {shopName.slice(0, -4) || shopName}
+                  <span className="text-barber-400">{shopName.slice(-4) || ''}</span>
+                </>
+              )}
             </span>
           </Link>
 
@@ -38,9 +51,7 @@ export default function Navbar() {
                 key={link.to}
                 to={link.to}
                 className={`text-sm font-medium transition-colors duration-200 ${
-                  isActive(link.to)
-                    ? 'text-barber-400'
-                    : 'text-gray-400 hover:text-white'
+                  isActive(link.to) ? 'text-barber-400' : 'text-gray-400 hover:text-white'
                 }`}
               >
                 {link.label}
@@ -64,7 +75,6 @@ export default function Navbar() {
               {t('nav.admin')}
             </Link>
 
-            {/* Mobile menu button */}
             <button
               onClick={() => setOpen(!open)}
               className="md:hidden p-2 text-gray-400 hover:text-white"
@@ -80,7 +90,6 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Mobile menu */}
         {open && (
           <div className="md:hidden border-t border-dark-600 py-3 space-y-1">
             {links.map((link) => (

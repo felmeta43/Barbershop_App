@@ -6,8 +6,8 @@
     "install:all": "npm install && npm --prefix client install && npm --prefix server install",
     "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
     "build": "npm --prefix client run build && npm --prefix server run build",
-    "start": "npm --prefix server run start",
-    "setup": "npm run install:all && npm --prefix server run db:seed"
+    "start": "npm run build && node server/dist/index.js",
+    "setup": "npm run install:all"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

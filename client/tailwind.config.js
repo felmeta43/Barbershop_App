@@ -5,16 +5,16 @@ export default {
     extend: {
       colors: {
         barber: {
-          50: '#fef9ec',
-          100: '#fef0c7',
-          200: '#fed75a',
-          300: '#fec935',
-          400: '#feb60a',
-          500: '#e89b00',
-          600: '#cc7a00',
-          700: '#a35800',
-          800: '#864400',
-          900: '#713a00',
+          50:  'rgb(var(--barber-50)  / <alpha-value>)',
+          100: 'rgb(var(--barber-100) / <alpha-value>)',
+          200: 'rgb(var(--barber-200) / <alpha-value>)',
+          300: 'rgb(var(--barber-300) / <alpha-value>)',
+          400: 'rgb(var(--barber-400) / <alpha-value>)',
+          500: 'rgb(var(--barber-500) / <alpha-value>)',
+          600: 'rgb(var(--barber-600) / <alpha-value>)',
+          700: 'rgb(var(--barber-700) / <alpha-value>)',
+          800: 'rgb(var(--barber-800) / <alpha-value>)',
+          900: 'rgb(var(--barber-900) / <alpha-value>)',
         },
         dark: {
           900: '#0a0a0a',

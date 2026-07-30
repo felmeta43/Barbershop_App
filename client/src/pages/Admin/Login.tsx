@@ -3,14 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { authApi } from '../../lib/api';
+import { useShop } from '../../context/ShopContext';
 
 export default function AdminLogin() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const navigate = useNavigate();
+  const { shop, shopT } = useShop();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const shopName = shopT('name', lang) || 'BarberShop';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,10 +35,14 @@ export default function AdminLogin() {
     <div className="min-h-screen bg-dark-900 flex items-center justify-center">
       <div className="max-w-md w-full mx-4">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-barber-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-dark-900 text-3xl font-bold">✂</span>
+          <div className="w-16 h-16 bg-barber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 overflow-hidden">
+            {shop?.logo_url ? (
+              <img src={shop.logo_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-dark-900 text-3xl font-bold">{shop?.logo_emoji || '✂'}</span>
+            )}
           </div>
-          <h1 className="text-white font-black text-2xl">BarberShop Admin</h1>
+          <h1 className="text-white font-black text-2xl">{shopName} Admin</h1>
         </div>
         <div className="bg-dark-700 rounded-3xl p-8 border border-dark-600">
           <h2 className={`text-white font-bold text-xl mb-6 ${lang === 'am' ? 'font-amharic' : ''}`}>

@@ -3,15 +3,14 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { servicesApi, barbersApi } from '../lib/api';
 import { Service, Barber } from '../lib/types';
+import { useShop } from '../context/ShopContext';
 
-function ServiceCard({ service, lang }: { service: Service; lang: string }) {
+function ServiceCard({ service, lang, currencySymbol }: { service: Service; lang: string; currencySymbol: string }) {
   const { t } = useTranslation();
   const name = lang === 'am' ? service.name_am || service.name
-    : lang === 'om' ? service.name_om || service.name
-    : service.name;
+    : lang === 'om' ? service.name_om || service.name : service.name;
   const desc = lang === 'am' ? service.description_am || service.description
-    : lang === 'om' ? service.description_om || service.description
-    : service.description;
+    : lang === 'om' ? service.description_om || service.description : service.description;
 
   const categoryColors: Record<string, string> = {
     haircut: 'bg-blue-500/20 text-blue-400',
@@ -28,18 +27,13 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${categoryColors[service.category] || categoryColors.other}`}>
           {t(`services.categories.${service.category}`)}
         </span>
-        <span className="text-barber-400 font-bold text-lg">{service.price} {t('common.etb')}</span>
+        <span className="text-barber-400 font-bold text-lg">{service.price} {currencySymbol}</span>
       </div>
-      <h3 className="text-white font-bold text-lg mb-2 group-hover:text-barber-300 transition-colors">
-        {name}
-      </h3>
+      <h3 className="text-white font-bold text-lg mb-2 group-hover:text-barber-300 transition-colors">{name}</h3>
       {desc && <p className="text-gray-400 text-sm mb-4 line-clamp-2">{desc}</p>}
       <div className="flex items-center justify-between">
         <span className="text-gray-500 text-xs">⏱ {service.duration_minutes} {t('services.duration')}</span>
-        <Link
-          to={`/book?service=${service.id}`}
-          className="text-barber-400 hover:text-barber-300 text-sm font-medium transition-colors"
-        >
+        <Link to={`/book?service=${service.id}`} className="text-barber-400 hover:text-barber-300 text-sm font-medium transition-colors">
           {t('services.book_now')} →
         </Link>
       </div>
@@ -50,11 +44,9 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
 function BarberCard({ barber, lang }: { barber: Barber; lang: string }) {
   const { t } = useTranslation();
   const name = lang === 'am' ? barber.name_am || barber.name
-    : lang === 'om' ? barber.name_om || barber.name
-    : barber.name;
+    : lang === 'om' ? barber.name_om || barber.name : barber.name;
   const specialty = lang === 'am' ? barber.specialty_am || barber.specialty
-    : lang === 'om' ? barber.specialty_om || barber.specialty
-    : barber.specialty;
+    : lang === 'om' ? barber.specialty_om || barber.specialty : barber.specialty;
 
   return (
     <div className="bg-dark-700 rounded-2xl p-6 border border-dark-600 hover:border-barber-500/50 transition-all duration-300 text-center group">
@@ -80,20 +72,32 @@ function BarberCard({ barber, lang }: { barber: Barber; lang: string }) {
 export default function Home() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
+  const { shop, shopT, currencySymbol } = useShop();
 
   const { data: services = [] } = useQuery<Service[]>({ queryKey: ['services'], queryFn: servicesApi.getAll });
   const { data: barbers = [] } = useQuery<Barber[]>({ queryKey: ['barbers'], queryFn: barbersApi.getAll });
+
+  const shopName = shopT('name', lang) || 'BarberShop';
+  const tagline = shopT('tagline', lang) || t('hero.tagline');
+  const about = shopT('about', lang) || t('hero.subtitle');
+  const address = shopT('address', lang) || 'Addis Ababa, Ethiopia';
+
+  const socialLinks = [
+    { href: shop?.facebook, icon: 'f', label: 'Facebook' },
+    { href: shop?.instagram, icon: '📸', label: 'Instagram' },
+    { href: shop?.telegram, icon: '✈', label: 'Telegram' },
+    { href: shop?.tiktok, icon: '♪', label: 'TikTok' },
+    { href: shop?.twitter, icon: '𝕏', label: 'Twitter' },
+  ].filter((s) => s.href);
 
   return (
     <div className="min-h-screen bg-dark-900">
       {/* Hero */}
       <section className="relative min-h-screen flex items-center overflow-hidden">
-        {/* Background */}
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900" />
           <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-barber-500/5 rounded-full blur-3xl" />
           <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-barber-600/10 rounded-full blur-2xl" />
-          {/* Barbershop pole animation */}
           <div className="absolute right-8 top-1/2 -translate-y-1/2 hidden lg:block">
             <div className="w-16 h-64 rounded-full overflow-hidden border-4 border-dark-600 shadow-2xl">
               <div className="w-full h-full bg-gradient-to-b from-red-600 via-white to-blue-600 animate-pulse-slow" />
@@ -104,14 +108,14 @@ export default function Home() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16">
           <div className="max-w-3xl animate-fade-in">
             <div className="inline-flex items-center gap-2 bg-barber-500/20 text-barber-400 px-4 py-2 rounded-full text-sm font-semibold mb-6">
-              <span>✂️</span>
-              <span>Professional Barbershop</span>
+              <span>{shop?.logo_emoji || '✂️'}</span>
+              <span>{shopName}</span>
             </div>
             <h1 className={`text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight ${lang === 'am' ? 'font-amharic' : ''}`}>
-              {t('hero.tagline')}
+              {tagline}
             </h1>
             <p className={`text-xl text-gray-400 mb-10 max-w-2xl ${lang === 'am' ? 'font-amharic' : ''}`}>
-              {t('hero.subtitle')}
+              {about}
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link
@@ -131,10 +135,10 @@ export default function Home() {
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-16">
               {[
-                { num: '500+', label: t('hero.stats.clients') },
-                { num: '3', label: t('hero.stats.barbers') },
-                { num: '6+', label: t('hero.stats.services') },
-                { num: '5+', label: t('hero.stats.years') },
+                { num: shop?.stats_clients || '500+', label: t('hero.stats.clients') },
+                { num: String(barbers.length || 3), label: t('hero.stats.barbers') },
+                { num: String(services.length || 6), label: t('hero.stats.services') },
+                { num: shop?.stats_years || '5+', label: t('hero.stats.years') },
               ].map((stat) => (
                 <div key={stat.label} className="text-center">
                   <div className="text-3xl font-black text-barber-400">{stat.num}</div>
@@ -157,7 +161,7 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {services.map((service) => (
-              <ServiceCard key={service.id} service={service} lang={lang} />
+              <ServiceCard key={service.id} service={service} lang={lang} currencySymbol={currencySymbol} />
             ))}
           </div>
           <div className="text-center mt-8">
@@ -194,7 +198,7 @@ export default function Home() {
           <h2 className={`text-4xl font-black text-dark-900 mb-4 ${lang === 'am' ? 'font-amharic' : ''}`}>
             {t('hero.book_btn')}
           </h2>
-          <p className="text-dark-800 text-lg mb-8">{t('hero.subtitle')}</p>
+          <p className="text-dark-800 text-lg mb-8">{about}</p>
           <Link
             to="/book"
             className="bg-dark-900 text-barber-400 font-bold text-lg px-10 py-4 rounded-xl hover:bg-dark-800 transition-colors shadow-xl"
@@ -206,9 +210,23 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="bg-dark-800 border-t border-dark-600 py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
-          <p>© 2024 BarberShop. All rights reserved.</p>
-          <p className="mt-1">Addis Ababa, Ethiopia | +251 911 000 000</p>
+        <div className="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm space-y-2">
+          <p>© {new Date().getFullYear()} {shopName}. All rights reserved.</p>
+          <p className={lang === 'am' ? 'font-amharic' : ''}>
+            {address}
+            {shop?.phone ? ` | ${shop.phone}` : ''}
+            {shop?.email ? ` | ${shop.email}` : ''}
+          </p>
+          {socialLinks.length > 0 && (
+            <div className="flex justify-center gap-4 mt-3">
+              {socialLinks.map((s) => (
+                <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
+                  className="text-gray-600 hover:text-barber-400 transition-colors text-xs">
+                  {s.icon} {s.label}
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       </footer>
     </div>

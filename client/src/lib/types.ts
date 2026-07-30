@@ -71,4 +71,51 @@ export interface QueueStats {
   cancelled: number;
 }
 
+export interface WorkingDay {
+  open: string;
+  close: string;
+  closed: boolean;
+}
+
+export interface ShopSettings {
+  name: string;
+  name_am: string;
+  name_om: string;
+  tagline: string;
+  tagline_am: string;
+  tagline_om: string;
+  about: string;
+  about_am: string;
+  about_om: string;
+  logo_emoji: string;
+  logo_url: string;
+  phone: string;
+  email: string;
+  address: string;
+  address_am: string;
+  address_om: string;
+  facebook: string;
+  instagram: string;
+  telegram: string;
+  tiktok: string;
+  twitter: string;
+  theme_preset: string;
+  theme_color: string;
+  working_hours: {
+    monday: WorkingDay;
+    tuesday: WorkingDay;
+    wednesday: WorkingDay;
+    thursday: WorkingDay;
+    friday: WorkingDay;
+    saturday: WorkingDay;
+    sunday: WorkingDay;
+  };
+  currency: string;
+  currency_symbol: string;
+  advance_booking_days: number;
+  slot_duration_minutes: number;
+  stats_clients: string;
+  stats_years: string;
+}
+
 export type Language = 'en' | 'am' | 'om';

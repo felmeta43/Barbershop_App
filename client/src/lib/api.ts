@@ -66,3 +66,8 @@ export const paymentApi = {
     api.post('/payment/initialize', { appointment_id: appointmentId, email }).then((r) => r.data),
   verify: (txRef: string) => api.get(`/payment/verify/${txRef}`).then((r) => r.data),
 };
+
+export const settingsApi = {
+  get: () => api.get('/settings').then((r) => r.data),
+  update: (data: any) => api.put('/settings', data).then((r) => r.data),
+};

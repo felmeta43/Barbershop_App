@@ -5,13 +5,32 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { servicesApi, barbersApi, appointmentsApi, paymentApi } from '../lib/api';
 import { Service, Barber } from '../lib/types';
+import { useShop } from '../context/ShopContext';
 
-const TIME_SLOTS = [
+const FALLBACK_SLOTS = [
   '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
   '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-  '17:00', '17:30', '18:00',
+  '17:00', '17:30',
 ];
+
+function generateTimeSlots(open: string, close: string, slotMinutes: number): string[] {
+  const slots: string[] = [];
+  const [oh, om] = open.split(':').map(Number);
+  const [ch, cm] = close.split(':').map(Number);
+  let mins = oh * 60 + om;
+  const end = ch * 60 + cm;
+  while (mins < end) {
+    slots.push(`${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`);
+    mins += slotMinutes;
+  }
+  return slots;
+}
+
+function getDayName(dateStr: string) {
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+  return days[new Date(dateStr + 'T00:00:00').getDay()];
+}
 
 const STEPS = ['service', 'barber', 'datetime', 'details', 'confirm'] as const;
 type Step = typeof STEPS[number];
@@ -32,6 +51,7 @@ export default function Booking() {
   const lang = i18n.language;
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { shop, currencySymbol } = useShop();
 
   const [step, setStep] = useState<Step>('service');
   const [confirmed, setConfirmed] = useState<any>(null);
@@ -59,12 +79,24 @@ export default function Booking() {
   const selectedBarber = barbers.find((b) => b.id === data.barber_id);
   const bookedTimes: string[] = availability?.booked_times || [];
 
+  // Compute available time slots from working hours
+  const dayName = data.appointment_date ? getDayName(data.appointment_date) : null;
+  const dayHours = dayName ? shop?.working_hours?.[dayName] : null;
+  const isDayClosed = dayHours?.closed ?? false;
+  const timeSlots = dayHours && !isDayClosed
+    ? generateTimeSlots(dayHours.open, dayHours.close, shop?.slot_duration_minutes || 30)
+    : FALLBACK_SLOTS;
+
+  // Max bookable date
+  const maxDate = shop?.advance_booking_days
+    ? new Date(Date.now() + shop.advance_booking_days * 86400000).toISOString().split('T')[0]
+    : undefined;
+
   const getServiceName = (s: Service) =>
     lang === 'am' ? s.name_am || s.name : lang === 'om' ? s.name_om || s.name : s.name;
   const getBarberName = (b: Barber) =>
     lang === 'am' ? b.name_am || b.name : lang === 'om' ? b.name_om || b.name : b.name;
 
-  // Auto-advance if pre-selected
   useEffect(() => {
     if (data.service_id && step === 'service') setStep('barber');
   }, []);
@@ -80,9 +112,7 @@ export default function Booking() {
 
   const payMutation = useMutation({
     mutationFn: () => paymentApi.initialize(confirmed.id, confirmed.customer_email),
-    onSuccess: (res) => {
-      window.location.href = res.checkout_url;
-    },
+    onSuccess: (res) => { window.location.href = res.checkout_url; },
     onError: () => toast.error('Payment initialization failed'),
   });
 
@@ -92,7 +122,7 @@ export default function Booking() {
   const canNext = () => {
     if (step === 'service') return !!data.service_id;
     if (step === 'barber') return true;
-    if (step === 'datetime') return !!data.appointment_date && !!data.appointment_time;
+    if (step === 'datetime') return !!data.appointment_date && !!data.appointment_time && !isDayClosed;
     if (step === 'details') return !!data.customer_name && data.customer_phone.length >= 9;
     return true;
   };
@@ -108,7 +138,6 @@ export default function Booking() {
     if (idx > 0) setStep(STEPS[idx - 1]);
   };
 
-  // Confirmed screen
   if (confirmed) {
     return (
       <div className="min-h-screen bg-dark-900 pt-20 flex items-center justify-center">
@@ -129,7 +158,7 @@ export default function Booking() {
                 { label: t('common.service'), val: confirmed.service_name },
                 { label: t('common.barber'), val: confirmed.barber_name || t('booking.any_barber') },
                 { label: t('common.date'), val: `${confirmed.appointment_date} ${confirmed.appointment_time}` },
-                { label: t('payment.amount'), val: `${confirmed.payment_amount} ${t('common.etb')}` },
+                { label: t('payment.amount'), val: `${confirmed.payment_amount} ${currencySymbol}` },
               ].map((r) => (
                 <div key={r.label} className="flex justify-between">
                   <span className="text-gray-400">{r.label}</span>
@@ -164,19 +193,13 @@ export default function Booking() {
   return (
     <div className="min-h-screen bg-dark-900 pt-20">
       <div className="max-w-2xl mx-auto px-4 py-12">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className={`text-3xl font-black text-white mb-2 ${lang === 'am' ? 'font-amharic' : ''}`}>
             {t('booking.title')}
           </h1>
-          {/* Progress bar */}
           <div className="mt-6 h-1.5 bg-dark-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-barber-500 rounded-full transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="h-full bg-barber-500 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
-          {/* Step indicators */}
           <div className="flex justify-between mt-3">
             {STEPS.map((s, i) => (
               <div key={s} className={`text-xs ${i <= stepIndex ? 'text-barber-400' : 'text-gray-600'}`}>
@@ -209,11 +232,9 @@ export default function Booking() {
                         <div className={`font-semibold ${lang === 'am' ? 'font-amharic' : ''}`}>
                           {getServiceName(service)}
                         </div>
-                        <div className="text-sm text-gray-400 mt-0.5">
-                          ⏱ {service.duration_minutes} {t('services.duration')}
-                        </div>
+                        <div className="text-sm text-gray-400 mt-0.5">⏱ {service.duration_minutes} {t('services.duration')}</div>
                       </div>
-                      <div className="text-barber-400 font-bold text-lg">{service.price} {t('common.etb')}</div>
+                      <div className="text-barber-400 font-bold text-lg">{service.price} {currencySymbol}</div>
                     </div>
                   </button>
                 ))}
@@ -259,15 +280,13 @@ export default function Booking() {
                         }
                       </div>
                       <div>
-                        <div className={`font-semibold ${lang === 'am' ? 'font-amharic' : ''}`}>
-                          {getBarberName(barber)}
-                        </div>
+                        <div className={`font-semibold ${lang === 'am' ? 'font-amharic' : ''}`}>{getBarberName(barber)}</div>
                         {barber.specialty && (
-                          <div className="text-xs text-barber-400">{
-                            lang === 'am' ? barber.specialty_am || barber.specialty
-                            : lang === 'om' ? barber.specialty_om || barber.specialty
-                            : barber.specialty
-                          }</div>
+                          <div className="text-xs text-barber-400">
+                            {lang === 'am' ? barber.specialty_am || barber.specialty
+                              : lang === 'om' ? barber.specialty_om || barber.specialty
+                              : barber.specialty}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -285,24 +304,28 @@ export default function Booking() {
               </h2>
               <div className="space-y-6">
                 <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">
-                    {t('booking.date_label')}
-                  </label>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">{t('booking.date_label')}</label>
                   <input
                     type="date"
                     value={data.appointment_date}
                     min={new Date().toISOString().split('T')[0]}
+                    max={maxDate}
                     onChange={(e) => setData((d) => ({ ...d, appointment_date: e.target.value, appointment_time: '' }))}
                     className="w-full bg-dark-600 border border-dark-500 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-barber-500"
                   />
                 </div>
-                {data.appointment_date && (
+
+                {data.appointment_date && isDayClosed && (
+                  <div className="bg-red-500/20 border border-red-500/40 rounded-xl p-4 text-red-400 text-sm">
+                    🚫 The shop is closed on this day. Please pick another date.
+                  </div>
+                )}
+
+                {data.appointment_date && !isDayClosed && (
                   <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-3">
-                      {t('booking.time_label')}
-                    </label>
+                    <label className="block text-gray-300 text-sm font-medium mb-3">{t('booking.time_label')}</label>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {TIME_SLOTS.map((slot) => {
+                      {timeSlots.map((slot) => {
                         const isBooked = bookedTimes.includes(slot);
                         return (
                           <button
@@ -371,7 +394,7 @@ export default function Booking() {
                   { label: t('common.time'), val: data.appointment_time },
                   { label: t('admin.name'), val: data.customer_name },
                   { label: t('admin.phone'), val: data.customer_phone },
-                  { label: t('payment.amount'), val: `${selectedService?.price || 0} ${t('common.etb')}` },
+                  { label: t('payment.amount'), val: `${selectedService?.price || 0} ${currencySymbol}` },
                 ].map((r) => (
                   <div key={r.label} className="flex justify-between py-3 border-b border-dark-600">
                     <span className="text-gray-400">{r.label}</span>
