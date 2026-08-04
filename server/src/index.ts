@@ -33,11 +33,8 @@ app.use(cors({
 }));
 app.use(express.json());
 
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
 app.use('/api/', limiter);
-
-const bookingLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10 });
-app.use('/api/appointments', bookingLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/barbers', barberRoutes);

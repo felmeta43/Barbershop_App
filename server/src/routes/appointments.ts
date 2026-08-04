@@ -1,11 +1,19 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import db from '../database';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { sendBookingConfirmation } from '../services/smsService';
 
 const router = Router();
+
+// Rate limit only new bookings (POST), not reads/availability checks
+const bookingLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  message: { error: 'Too many bookings from this device. Please wait an hour and try again.' },
+});
 
 const appointmentSchema = z.object({
   customer_name: z.string().min(1),
@@ -19,7 +27,7 @@ const appointmentSchema = z.object({
   lang: z.enum(['en', 'am', 'om']).default('en'),
 });
 
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', bookingLimiter, async (req: Request, res: Response) => {
   try {
     const data = appointmentSchema.parse(req.body);
 
@@ -92,11 +100,13 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(201).json({ ...appointment, queue_number: queueNumber });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      res.status(400).json({ error: 'Invalid input', details: err.errors });
+      const msg = err.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
+      console.error('Booking validation error:', msg);
+      res.status(400).json({ error: `Validation failed: ${msg}` });
       return;
     }
-    console.error(err);
-    res.status(500).json({ error: 'Failed to create appointment' });
+    console.error('Booking error:', err);
+    res.status(500).json({ error: 'Failed to create appointment', detail: String(err) });
   }
 });
 

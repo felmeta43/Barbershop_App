@@ -113,7 +113,10 @@ export default function Booking() {
       setConfirmed(result);
       toast.success(t('booking.booking_confirmed'));
     },
-    onError: () => toast.error(t('common.error')),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error || t('common.error');
+      toast.error(msg, { duration: 6000 });
+    },
   });
 
   const payMutation = useMutation({
