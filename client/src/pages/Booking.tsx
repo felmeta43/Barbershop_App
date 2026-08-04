@@ -120,7 +120,7 @@ export default function Booking() {
   });
 
   const payMutation = useMutation({
-    mutationFn: () => paymentApi.initialize(confirmed.id, confirmed.customer_email),
+    mutationFn: () => paymentApi.initialize(confirmed.id, confirmed.customer_email || undefined),
     onSuccess: (res) => { window.location.href = res.checkout_url; },
     onError: (err: any) => {
       const msg = err?.response?.data?.error || 'Payment initialization failed';

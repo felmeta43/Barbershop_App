@@ -37,6 +37,9 @@ async function sendAfricasTalking(to: string, message: string): Promise<boolean>
     // Only include sender ID if explicitly set — unregistered IDs cause rejection on many operators
     if (AT_SENDER_ID) params.set('from', AT_SENDER_ID);
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -45,17 +48,22 @@ async function sendAfricasTalking(to: string, message: string): Promise<boolean>
         apiKey: AT_API_KEY,
       },
       body: params.toString(),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
 
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.error('SMS API error:', JSON.stringify(body));
       return false;
     }
-    console.log('SMS sent to', normalizedTo, JSON.stringify(body));
+    console.log('✅ SMS sent to', normalizedTo);
     return true;
-  } catch (err) {
-    console.error('SMS send error:', err);
+  } catch (err: any) {
+    if (err?.name === 'AbortError' || err?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT') {
+      console.error('SMS timeout: Cannot reach Africa\'s Talking servers. Check that Node.js is allowed through Windows Firewall (outbound HTTPS/port 443).');
+    } else {
+      console.error('SMS send error:', err?.message || err);
+    }
     return false;
   }
 }

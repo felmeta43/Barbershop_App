@@ -17,7 +17,7 @@ const router = Router();
 
 const initSchema = z.object({
   appointment_id: z.string().uuid(),
-  email: z.string().email().optional().or(z.literal('')),
+  email: z.preprocess(v => (v == null ? undefined : v), z.string().email().optional().or(z.literal(''))),
 });
 
 router.post('/initialize', async (req: Request, res: Response) => {
