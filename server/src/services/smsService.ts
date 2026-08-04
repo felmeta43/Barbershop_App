@@ -51,13 +51,26 @@ async function sendAfricasTalking(to: string, message: string): Promise<boolean>
       signal: controller.signal,
     }).finally(() => clearTimeout(timer));
 
-    const body = await response.json().catch(() => ({}));
+    const body = await response.json().catch(() => ({})) as any;
     if (!response.ok) {
       console.error('SMS API error:', JSON.stringify(body));
       return false;
     }
-    console.log('✅ SMS sent to', normalizedTo);
-    return true;
+
+    // Log the per-recipient status so we can see if delivery was queued or rejected
+    const recipients = body?.SMSMessageData?.Recipients || [];
+    for (const r of recipients) {
+      if (r.status === 'Success' || r.statusCode === 101) {
+        console.log(`✅ SMS queued for ${r.number} (cost: ${r.cost})`);
+      } else {
+        console.warn(`⚠️  SMS to ${r.number} status: ${r.status} — ${
+          r.statusCode === 402 ? 'Insufficient balance on Africa\'s Talking account' :
+          r.statusCode === 403 ? 'Number not in sandbox — add it at africastalking.com/sandbox' :
+          `code ${r.statusCode}`
+        }`);
+      }
+    }
+    return recipients.some((r: any) => r.status === 'Success' || r.statusCode === 101);
   } catch (err: any) {
     if (err?.name === 'AbortError' || err?.cause?.code === 'UND_ERR_CONNECT_TIMEOUT') {
       console.error('SMS timeout: Cannot reach Africa\'s Talking servers. Check that Node.js is allowed through Windows Firewall (outbound HTTPS/port 443).');

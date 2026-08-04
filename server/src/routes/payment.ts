@@ -54,7 +54,7 @@ router.post('/initialize', async (req: Request, res: Response) => {
     const chapaRes = await initializeChapaPayment({
       amount: appointment.service_price || appointment.payment_amount,
       currency: 'ETB',
-      email: email || appointment.customer_email || 'noreply@barbershop.et',
+      email: email || appointment.customer_email || 'noreply@barbershop.com',
       firstName,
       lastName,
       phone: normalizePhone(appointment.customer_phone),

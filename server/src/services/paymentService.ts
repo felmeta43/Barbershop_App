@@ -42,16 +42,19 @@ export async function initializeChapaPayment(params: {
       callback_url: params.callbackUrl,
       description: params.description,
       customization: {
-        title: 'Barbershop Payment',
-        description: params.description,
+        title: 'Barber Pay',        // max 16 chars
+        description: params.description.slice(0, 100),
       },
     }),
   });
 
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
+    const err = await response.json().catch(() => ({})) as any;
     console.error('Chapa init error:', JSON.stringify(err));
-    throw new Error((err as any)?.message || 'Chapa payment initialization failed');
+    const msg = typeof err?.message === 'string'
+      ? err.message
+      : JSON.stringify(err?.message || err);
+    throw new Error(msg);
   }
 
   return response.json() as Promise<{
