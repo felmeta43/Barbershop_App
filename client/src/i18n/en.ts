@@ -69,6 +69,7 @@ export default {
       booking_confirmed: 'Booking Confirmed!',
       queue_number: 'Your Queue Number',
       sms_sent: 'A confirmation SMS has been sent to your phone.',
+      sms_note: 'Show your queue number when you arrive at the shop.',
       any_barber: 'Any Available Barber',
       booked_times: 'Already booked',
       no_slots: 'No available slots for this date',

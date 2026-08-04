@@ -4,6 +4,15 @@ import { z } from 'zod';
 import db from '../database';
 import { initializeChapaPayment, verifyChapaPayment } from '../services/paymentService';
 
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('2519') || digits.startsWith('2517')) return `+${digits}`;
+  if (digits.startsWith('09') || digits.startsWith('07')) return `+251${digits.slice(1)}`;
+  if (digits.startsWith('9') || digits.startsWith('7')) return `+251${digits}`;
+  if (digits.startsWith('251')) return `+${digits}`;
+  return phone;
+}
+
 const router = Router();
 
 const initSchema = z.object({
@@ -45,10 +54,10 @@ router.post('/initialize', async (req: Request, res: Response) => {
     const chapaRes = await initializeChapaPayment({
       amount: appointment.service_price || appointment.payment_amount,
       currency: 'ETB',
-      email: email || appointment.customer_email || `${appointment.id}@barbershop.local`,
+      email: email || appointment.customer_email || 'noreply@barbershop.et',
       firstName,
       lastName,
-      phone: appointment.customer_phone,
+      phone: normalizePhone(appointment.customer_phone),
       txRef,
       returnUrl: `${baseUrl}/payment/callback?tx_ref=${txRef}&appointment_id=${appointment_id}`,
       callbackUrl: `${process.env.SERVER_URL || baseUrl}/api/payment/webhook`,

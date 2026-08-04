@@ -64,6 +64,7 @@ export default {
       booking_confirmed: 'ቀጠሮ ተረጋግጧል!',
       queue_number: 'የተራ ቁጥርዎ',
       sms_sent: 'የማረጋገጫ ስልክ መልዕክት ተልኳል።',
+      sms_note: 'ወደ ሱቁ ሲደርሱ የተራ ቁጥርዎን ያሳዩ።',
       any_barber: 'ማንኛውም ባርበር',
       booked_times: 'አስቀድሞ የተያዘ',
       no_slots: 'ለዚህ ቀን ምንም ቦታ የለም',

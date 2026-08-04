@@ -64,6 +64,7 @@ export default {
       booking_confirmed: 'Beellami Mirkaneeffameera!',
       queue_number: 'Lakk. Tarree Kee',
       sms_sent: 'Ergaan mirkaneessaa bilbila kee irratti ergameera.',
+      sms_note: 'Lakkofsa tarree kee gara dukkaanaatti yeroo dhuftu agarsiisi.',
       any_barber: 'Barbera Argamu',
       booked_times: 'Duraan qabamee',
       no_slots: 'Guyyaa kanaaf teessoon hin jiru',

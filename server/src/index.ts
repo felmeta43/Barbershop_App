@@ -58,6 +58,10 @@ if (fs.existsSync(clientDist)) {
 
 app.listen(PORT, () => {
   console.log(`✂️  Barbershop server running on http://localhost:${PORT}`);
+  const smsOk = !!(process.env.AT_API_KEY && !process.env.AT_API_KEY.includes('your_'));
+  const chapaOk = !!(process.env.CHAPA_SECRET_KEY && !process.env.CHAPA_SECRET_KEY.includes('your_'));
+  console.log(`📱 SMS (Africa's Talking): ${smsOk ? '✅ configured' : '❌ AT_API_KEY missing or placeholder'}`);
+  console.log(`💳 Chapa payment:          ${chapaOk ? '✅ configured' : '❌ CHAPA_SECRET_KEY missing or placeholder'}`);
 });
 
 export default app;

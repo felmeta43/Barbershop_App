@@ -83,9 +83,9 @@ router.post('/', bookingLimiter, async (req: Request, res: Response) => {
       WHERE a.id = ?
     `).get(id) as any;
 
-    // Send SMS confirmation (non-blocking)
+    // Send SMS confirmation (non-blocking) — track whether it succeeds
     const langMap: Record<string, string> = { am: 'am', om: 'om', en: 'en' };
-    sendBookingConfirmation({
+    const smsPromise = sendBookingConfirmation({
       phone: data.customer_phone,
       customerName: data.customer_name,
       serviceName: appointment.service_name,
@@ -95,9 +95,10 @@ router.post('/', bookingLimiter, async (req: Request, res: Response) => {
       queueNumber,
       appointmentId: id,
       lang: langMap[data.lang],
-    }).catch(console.error);
+    }).catch((err) => { console.error('SMS error:', err); return false; });
 
-    res.status(201).json({ ...appointment, queue_number: queueNumber });
+    const sms_sent = await smsPromise;
+    res.status(201).json({ ...appointment, queue_number: queueNumber, sms_sent });
   } catch (err) {
     if (err instanceof z.ZodError) {
       const msg = err.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');

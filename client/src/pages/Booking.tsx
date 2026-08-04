@@ -122,7 +122,10 @@ export default function Booking() {
   const payMutation = useMutation({
     mutationFn: () => paymentApi.initialize(confirmed.id, confirmed.customer_email),
     onSuccess: (res) => { window.location.href = res.checkout_url; },
-    onError: () => toast.error('Payment initialization failed'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error || 'Payment initialization failed';
+      toast.error(msg, { duration: 8000 });
+    },
   });
 
   const stepIndex = STEPS.indexOf(step);
@@ -176,7 +179,7 @@ export default function Booking() {
               ))}
             </div>
             <p className={`text-gray-500 text-sm mb-6 ${lang === 'am' ? 'font-amharic' : ''}`}>
-              📱 {t('booking.sms_sent')}
+              📱 {confirmed.sms_sent ? t('booking.sms_sent') : t('booking.sms_note')}
             </p>
             <div className="space-y-3">
               <button
