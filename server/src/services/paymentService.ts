@@ -43,7 +43,11 @@ export async function initializeChapaPayment(params: {
       description: params.description,
       customization: {
         title: 'Barber Pay',        // max 16 chars
-        description: params.description.slice(0, 100),
+        // Chapa only allows letters, numbers, hyphens, underscores, spaces, dots
+        description: params.description
+          .replace(/&/g, 'and')
+          .replace(/[^a-zA-Z0-9\-_ .]/g, '')
+          .slice(0, 100),
       },
     }),
   });
