@@ -161,6 +161,24 @@ router.patch('/:id/status', authenticate, (req: AuthRequest, res: Response) => {
   res.json({ success: true });
 });
 
+router.patch('/:id/payment', authenticate, (req: AuthRequest, res: Response) => {
+  const { payment_status, payment_amount } = req.body;
+  const existing = db.prepare('SELECT * FROM appointments WHERE id = ?').get(req.params.id) as any;
+  if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const validStatuses = ['paid', 'unpaid'];
+  if (payment_status && !validStatuses.includes(payment_status)) {
+    res.status(400).json({ error: 'Invalid payment status' }); return;
+  }
+
+  db.prepare('UPDATE appointments SET payment_status = ?, payment_amount = ? WHERE id = ?').run(
+    payment_status ?? existing.payment_status,
+    payment_amount !== undefined ? Number(payment_amount) : existing.payment_amount,
+    req.params.id
+  );
+  res.json({ success: true });
+});
+
 router.get('/check/availability', (req: Request, res: Response) => {
   const { date, barber_id } = req.query;
   if (!date) {

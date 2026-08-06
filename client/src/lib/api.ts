@@ -44,6 +44,8 @@ export const appointmentsApi = {
   getById: (id: string) => api.get(`/appointments/${id}`).then((r) => r.data),
   updateStatus: (id: string, status: string) =>
     api.patch(`/appointments/${id}/status`, { status }).then((r) => r.data),
+  updatePayment: (id: string, data: { payment_status?: string; payment_amount?: number }) =>
+    api.patch(`/appointments/${id}/payment`, data).then((r) => r.data),
   checkAvailability: (date: string, barberId?: string) =>
     api.get('/appointments/check/availability', { params: { date, barber_id: barberId } }).then((r) => r.data),
 };
