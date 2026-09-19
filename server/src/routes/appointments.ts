@@ -171,15 +171,18 @@ async function sendAdminPushNotification(customerName: string, serviceName: stri
 router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { date, status } = req.query;
-    let query: Query<DocumentData> = db.collection('appointments');
+    let query: Query<DocumentData> = db.collection('appointments') as Query<DocumentData>;
 
     if (date) query = query.where('appointment_date', '==', date as string);
     if (status) query = query.where('status', '==', status as string);
 
-    query = query.orderBy('appointment_date').orderBy('appointment_time');
-
     const snap = await query.get();
-    res.json(snap.docs.map((d) => d.data()));
+    const appointments = snap.docs.map((d) => d.data()).sort((a, b) => {
+      const da = `${a.appointment_date} ${a.appointment_time}`;
+      const db2 = `${b.appointment_date} ${b.appointment_time}`;
+      return da.localeCompare(db2);
+    });
+    res.json(appointments);
   } catch (err) {
     console.error('Appointments fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch appointments' });

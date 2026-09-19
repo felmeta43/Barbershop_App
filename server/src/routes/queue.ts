@@ -15,9 +15,9 @@ router.get('/today', async (_req: Request, res: Response) => {
     const today = localToday();
     const snap = await db.collection('queue')
       .where('appointment_date', '==', today)
-      .orderBy('queue_position')
       .get();
-    res.json(snap.docs.map((d) => d.data()));
+    const queue = snap.docs.map((d) => d.data()).sort((a, b) => a.queue_position - b.queue_position);
+    res.json(queue);
   } catch (err) {
     console.error('Queue today error:', err);
     res.status(500).json({ error: 'Failed to fetch queue' });
