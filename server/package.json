@@ -9,7 +9,7 @@
     "db:seed": "tsx src/seed.ts"
   },
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=18"
   },
   "dependencies": {
     "africastalking": "^0.6.4",
