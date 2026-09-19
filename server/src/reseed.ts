@@ -1,37 +1,17 @@
+/**
+ * Reseed barbers and services — adds all DEFAULT samples, skipping any whose
+ * name already exists. Safe to run multiple times.
+ */
+import { config } from 'dotenv';
+import path from 'path';
+config({ path: path.resolve(__dirname, '../.env') });
+config({ path: path.resolve(__dirname, '../../.env') });
+config();
+
 import { db } from './firebase';
-import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 
-export const DEFAULT_SETTINGS = {
-  name: 'BarberShop', name_am: 'ባርበርሾፕ', name_om: 'Baarbar Shop',
-  tagline: 'Premium Cuts & Grooming',
-  tagline_am: 'ምርጥ ቁረጣ እና ማስዋቢያ',
-  tagline_om: 'Muraa fi Miidhagina Oadaa',
-  about: 'Experience the finest barbershop in town. Book your appointment online and skip the wait.',
-  about_am: 'በከተማዎ ምርጡን ቦርደርሾፕ ይጎብኙ። ቀጠሮዎን በኦንላይን ይያዙ።',
-  about_om: 'Baarbar shop caalu magaalaa kee. Beellama kee online qabadhu.',
-  logo_emoji: '✂', logo_url: '',
-  phone: '+251 911 000 000', email: 'info@barbershop.com',
-  address: 'Addis Ababa, Ethiopia',
-  address_am: 'አዲስ አበባ, ኢትዮጵያ',
-  address_om: 'Finfinnee, Itoophiyaa',
-  facebook: '', instagram: '', telegram: '', tiktok: '', twitter: '',
-  theme_preset: 'gold', theme_color: '#e89b00',
-  working_hours: {
-    monday:    { open: '08:00', close: '18:00', closed: false },
-    tuesday:   { open: '08:00', close: '18:00', closed: false },
-    wednesday: { open: '08:00', close: '18:00', closed: false },
-    thursday:  { open: '08:00', close: '18:00', closed: false },
-    friday:    { open: '08:00', close: '18:00', closed: false },
-    saturday:  { open: '08:00', close: '17:00', closed: false },
-    sunday:    { open: '09:00', close: '14:00', closed: true },
-  },
-  currency: 'ETB', currency_symbol: 'ETB',
-  advance_booking_days: 14, slot_duration_minutes: 30,
-  stats_clients: '500+', stats_years: '5+',
-};
-
-const DEFAULT_BARBERS = [
+const BARBERS = [
   { name: 'Abebe Kebede', name_am: 'አበበ ከበደ', name_om: 'Abebe Kabadaa', phone: '+251911000001',
     specialty: 'Classic & Modern Cuts', specialty_am: 'ክላሲክ እና ዘመናዊ ቁረጣ', specialty_om: 'Muraa Klassikii fi Ammayyaa',
     avatar: 'https://api.dicebear.com/7.x/personas/svg?seed=Abebe' },
@@ -58,7 +38,7 @@ const DEFAULT_BARBERS = [
     avatar: 'https://api.dicebear.com/7.x/personas/svg?seed=Robel' },
 ];
 
-const DEFAULT_SERVICES = [
+const SERVICES = [
   { name: 'Classic Haircut', name_am: 'ክላሲክ ፀጉር ቁረጣ', name_om: 'Muraa Rifeensaa Klassikii',
     description: 'Traditional haircut with scissors and comb',
     description_am: 'ባህላዊ ፀጉር ቁረጣ በቀናጢ እና ማበጠሪያ', description_om: 'Muraa rifeensaa aadaa',
@@ -109,50 +89,41 @@ const DEFAULT_SERVICES = [
     price: 80, duration_minutes: 15, category: 'haircut' },
 ];
 
-// Seeds Firestore on every startup — inserts defaults only when collections are empty
-export async function autoSeed() {
-  const adminSnap = await db.collection('admin_users').limit(1).get();
-  if (adminSnap.empty) {
-    const adminPwd = bcrypt.hashSync('admin123', 10);
-    const id = uuidv4();
-    await db.collection('admin_users').doc(id).set({
-      id, username: 'admin', password: adminPwd, role: 'admin',
-      created_at: new Date().toISOString(),
-    });
-    console.log('✅ Default admin created: admin / admin123');
-  }
-
-  const barbersSnap = await db.collection('barbers').limit(1).get();
-  if (barbersSnap.empty) {
+async function reseed() {
+  // Barbers — skip names that already exist
+  const existingBarbers = await db.collection('barbers').get();
+  const existingBarberNames = new Set(existingBarbers.docs.map((d) => d.data().name));
+  const newBarbers = BARBERS.filter((b) => !existingBarberNames.has(b.name));
+  if (newBarbers.length > 0) {
     const batch = db.batch();
-    for (const b of DEFAULT_BARBERS) {
+    for (const b of newBarbers) {
       const id = uuidv4();
-      batch.set(db.collection('barbers').doc(id), {
-        id, ...b, is_active: true, created_at: new Date().toISOString(),
-      });
+      batch.set(db.collection('barbers').doc(id), { id, ...b, is_active: true, created_at: new Date().toISOString() });
     }
     await batch.commit();
-    console.log(`✅ ${DEFAULT_BARBERS.length} sample barbers created`);
+    console.log(`✅ Added ${newBarbers.length} new barbers`);
+  } else {
+    console.log('ℹ️  All barbers already exist — nothing added');
   }
 
-  const servicesSnap = await db.collection('services').limit(1).get();
-  if (servicesSnap.empty) {
+  // Services — skip names that already exist
+  const existingServices = await db.collection('services').get();
+  const existingServiceNames = new Set(existingServices.docs.map((d) => d.data().name));
+  const newServices = SERVICES.filter((s) => !existingServiceNames.has(s.name));
+  if (newServices.length > 0) {
     const batch = db.batch();
-    for (const s of DEFAULT_SERVICES) {
+    for (const s of newServices) {
       const id = uuidv4();
-      batch.set(db.collection('services').doc(id), {
-        id, ...s, is_active: true, created_at: new Date().toISOString(),
-      });
+      batch.set(db.collection('services').doc(id), { id, ...s, is_active: true, created_at: new Date().toISOString() });
     }
     await batch.commit();
-    console.log(`✅ ${DEFAULT_SERVICES.length} sample services created`);
+    console.log(`✅ Added ${newServices.length} new services`);
+  } else {
+    console.log('ℹ️  All services already exist — nothing added');
   }
 
-  const settingsSnap = await db.collection('shop_settings').doc('main').get();
-  if (!settingsSnap.exists) {
-    await db.collection('shop_settings').doc('main').set({
-      ...DEFAULT_SETTINGS, updated_at: new Date().toISOString(),
-    });
-    console.log('✅ Default shop settings created');
-  }
+  console.log('Done!');
+  process.exit(0);
 }
+
+reseed().catch((err) => { console.error(err); process.exit(1); });
