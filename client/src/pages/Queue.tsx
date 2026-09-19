@@ -12,13 +12,11 @@ export default function Queue() {
   const { data: queue = [], refetch, isFetching } = useQuery<QueueEntry[]>({
     queryKey: ['queue-today'],
     queryFn: queueApi.getToday,
-    refetchInterval: 30000,
   });
 
   const { data: stats } = useQuery<QueueStats>({
     queryKey: ['queue-stats'],
     queryFn: queueApi.getStats,
-    refetchInterval: 30000,
   });
 
   const waiting = queue.filter((q) => q.status === 'waiting');
@@ -44,13 +42,21 @@ export default function Queue() {
             {t('queue.title')}
           </h1>
           <p className="text-gray-400">{t('queue.subtitle')}</p>
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="mt-4 text-barber-400 hover:text-barber-300 text-sm font-medium border border-barber-500/30 hover:border-barber-500/60 px-4 py-2 rounded-lg transition-all disabled:opacity-50"
-          >
-            {isFetching ? '...' : `↺ ${t('queue.refresh')}`}
-          </button>
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 px-4 py-2 rounded-full">
+              <span className={`w-2 h-2 rounded-full ${isFetching ? 'bg-barber-400 animate-ping' : 'bg-green-400 animate-pulse'}`} />
+              <span className="text-green-400 text-xs font-semibold tracking-widest">
+                {isFetching ? 'UPDATING...' : 'LIVE'}
+              </span>
+            </div>
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="text-gray-500 hover:text-barber-400 text-sm transition-colors disabled:opacity-30"
+            >
+              ↺ {t('queue.refresh')}
+            </button>
+          </div>
         </div>
 
         {/* Stats */}

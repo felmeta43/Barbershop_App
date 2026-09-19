@@ -21,7 +21,7 @@ export default function Appointments() {
   // Track which appointment is having its price edited: id → draft value
   const [editingPrice, setEditingPrice] = useState<Record<string, string>>({});
 
-  const { data: appointments = [], isLoading } = useQuery<Appointment[]>({
+  const { data: appointments = [], isLoading, isFetching } = useQuery<Appointment[]>({
     queryKey: ['appointments', dateFilter, statusFilter],
     queryFn: () => appointmentsApi.getAll({ date: dateFilter || undefined, status: statusFilter || undefined }),
   });
@@ -71,7 +71,13 @@ export default function Appointments() {
 
   return (
     <div>
-      <h1 className="text-white font-black text-2xl mb-6">{t('admin.appointments')}</h1>
+      <div className="flex items-center gap-3 mb-6">
+        <h1 className="text-white font-black text-2xl">{t('admin.appointments')}</h1>
+        <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/30 px-2.5 py-1 rounded-full">
+          <span className={`w-1.5 h-1.5 rounded-full ${isFetching ? 'bg-barber-400 animate-ping' : 'bg-green-400 animate-pulse'}`} />
+          <span className="text-green-400 text-xs font-semibold tracking-widest">LIVE</span>
+        </div>
+      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">

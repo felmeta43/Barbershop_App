@@ -8,16 +8,14 @@ export default function QueueManagement() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data: queue = [], refetch } = useQuery<QueueEntry[]>({
+  const { data: queue = [], refetch, isFetching } = useQuery<QueueEntry[]>({
     queryKey: ['admin-queue'],
     queryFn: queueApi.getToday,
-    refetchInterval: 20000,
   });
 
   const { data: stats } = useQuery<QueueStats>({
     queryKey: ['queue-stats'],
     queryFn: queueApi.getStats,
-    refetchInterval: 20000,
   });
 
   const invalidate = () => {
@@ -61,12 +59,21 @@ export default function QueueManagement() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-white font-black text-2xl">{t('admin.queue_mgmt')}</h1>
-        <button
-          onClick={() => refetch()}
-          className="text-barber-400 hover:text-barber-300 text-sm border border-barber-500/30 px-3 py-1.5 rounded-lg transition-colors"
-        >
-          ↺ {t('queue.refresh')}
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 px-3 py-1.5 rounded-full">
+            <span className={`w-2 h-2 rounded-full ${isFetching ? 'bg-barber-400 animate-ping' : 'bg-green-400 animate-pulse'}`} />
+            <span className="text-green-400 text-xs font-semibold tracking-widest">
+              {isFetching ? 'UPDATING' : 'LIVE'}
+            </span>
+          </div>
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="text-barber-400 hover:text-barber-300 text-sm border border-barber-500/30 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+          >
+            ↺ {t('queue.refresh')}
+          </button>
+        </div>
       </div>
 
       {/* Stats row */}

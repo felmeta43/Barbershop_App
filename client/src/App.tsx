@@ -20,7 +20,14 @@ import ShopSettingsPage from './pages/Admin/ShopSettings';
 import ProtectedRoute from './pages/Admin/ProtectedRoute';
 
 const qc = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30000, retry: 1 } },
+  defaultOptions: {
+    queries: {
+      staleTime: 0,          // always consider data stale so refetch fires on focus
+      refetchInterval: 10000, // poll every 10 seconds while tab is open
+      refetchOnWindowFocus: true,
+      retry: 1,
+    },
+  },
 });
 
 function PublicLayout({ children }: { children: React.ReactNode }) {

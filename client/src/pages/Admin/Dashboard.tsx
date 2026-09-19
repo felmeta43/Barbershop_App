@@ -8,16 +8,14 @@ export default function AdminDashboard() {
   const { t } = useTranslation();
   const today = new Date().toISOString().split('T')[0];
 
-  const { data: todayAppts = [] } = useQuery<Appointment[]>({
+  const { data: todayAppts = [], isFetching } = useQuery<Appointment[]>({
     queryKey: ['appointments', today],
     queryFn: () => appointmentsApi.getAll({ date: today }),
-    refetchInterval: 30000,
   });
 
   const { data: stats } = useQuery({
     queryKey: ['queue-stats'],
     queryFn: queueApi.getStats,
-    refetchInterval: 30000,
   });
 
   const revenue = todayAppts
@@ -43,7 +41,13 @@ export default function AdminDashboard() {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-white font-black text-2xl">{t('admin.dashboard')}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-white font-black text-2xl">{t('admin.dashboard')}</h1>
+          <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/30 px-2.5 py-1 rounded-full">
+            <span className={`w-1.5 h-1.5 rounded-full ${isFetching ? 'bg-barber-400 animate-ping' : 'bg-green-400 animate-pulse'}`} />
+            <span className="text-green-400 text-xs font-semibold tracking-widest">LIVE</span>
+          </div>
+        </div>
         <div className="text-gray-500 text-sm">{new Date().toLocaleDateString('en-ET', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
       </div>
 
