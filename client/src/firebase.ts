@@ -1,5 +1,5 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
+import { getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -9,17 +9,28 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+const fcmConfigured = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 
-export const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
+let app: FirebaseApp | null = null;
+let messaging: Messaging | null = null;
+
+if (fcmConfigured) {
+  try {
+    app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    if (typeof window !== 'undefined') messaging = getMessaging(app);
+  } catch (err) {
+    console.warn('Firebase init skipped:', err);
+  }
+}
+
+export { messaging };
 
 export async function requestNotificationPermission(): Promise<string | null> {
-  if (!messaging || !('Notification' in window)) return null;
+  if (!fcmConfigured || !messaging || !('Notification' in window)) return null;
   try {
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') return null;
 
-    // Register SW with config so it can init Firebase in background
     const configParam = encodeURIComponent(JSON.stringify(firebaseConfig));
     const swReg = await navigator.serviceWorker.register(
       `/firebase-messaging-sw.js?config=${configParam}`
