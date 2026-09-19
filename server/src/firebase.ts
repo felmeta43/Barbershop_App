@@ -1,6 +1,14 @@
+import { config } from 'dotenv';
+import path from 'path';
 import { initializeApp, getApps, getApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
+
+// Load .env before Firebase reads process.env — this file is required before
+// index.ts runs dotenv.config(), so we must do it here too.
+config({ path: path.resolve(__dirname, '../.env') });
+config({ path: path.resolve(__dirname, '../../.env') });
+config();
 
 if (!getApps().length) {
   initializeApp({
