@@ -36,6 +36,15 @@ export const barbersApi = {
   create: (data: any) => api.post('/barbers', data).then((r) => r.data),
   update: (id: string, data: any) => api.put(`/barbers/${id}`, data).then((r) => r.data),
   delete: (id: string) => api.delete(`/barbers/${id}`).then((r) => r.data),
+  // Unavailability
+  getUnavailableIds: (date: string): Promise<string[]> =>
+    api.get('/barbers/unavailable', { params: { date } }).then((r) => r.data.barber_ids),
+  getUnavailableDates: (barberId: string) =>
+    api.get(`/barbers/${barberId}/unavailable`).then((r) => r.data),
+  setUnavailable: (barberId: string, date: string, reason?: string) =>
+    api.post(`/barbers/${barberId}/unavailable`, { date, reason }).then((r) => r.data),
+  removeUnavailable: (barberId: string, date: string) =>
+    api.delete(`/barbers/${barberId}/unavailable/${date}`).then((r) => r.data),
 };
 
 export const appointmentsApi = {

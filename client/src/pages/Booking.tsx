@@ -81,6 +81,17 @@ export default function Booking() {
     enabled: !!data.appointment_date,
   });
 
+  // Fetch unavailable barber IDs for the selected date
+  const { data: unavailableBarberIds = [] } = useQuery<string[]>({
+    queryKey: ['barber-unavailable-ids', data.appointment_date],
+    queryFn: () => barbersApi.getUnavailableIds(data.appointment_date),
+    enabled: !!data.appointment_date,
+    refetchInterval: false, // no need to poll for this
+  });
+
+  const selectedBarberUnavailable =
+    !!data.barber_id && !!data.appointment_date && unavailableBarberIds.includes(data.barber_id);
+
   const selectedService = services.find((s) => s.id === data.service_id);
   const selectedBarber = barbers.find((b) => b.id === data.barber_id);
   const bookedTimes: string[] = availability?.booked_times || [];
@@ -134,7 +145,7 @@ export default function Booking() {
   const canNext = () => {
     if (step === 'service') return !!data.service_id;
     if (step === 'barber') return true;
-    if (step === 'datetime') return !!data.appointment_date && !!data.appointment_time && !isDayClosed;
+    if (step === 'datetime') return !!data.appointment_date && !!data.appointment_time && !isDayClosed && !selectedBarberUnavailable;
     if (step === 'details') return !!data.customer_name && data.customer_phone.length >= 9;
     return true;
   };
@@ -274,36 +285,44 @@ export default function Booking() {
                     <div className={lang === 'am' ? 'font-amharic' : ''}>{t('booking.any_barber')}</div>
                   </div>
                 </button>
-                {barbers.map((barber) => (
-                  <button
-                    key={barber.id}
-                    onClick={() => setData((d) => ({ ...d, barber_id: barber.id }))}
-                    className={`w-full p-4 rounded-xl border text-left transition-all duration-200 ${
-                      data.barber_id === barber.id
-                        ? 'bg-barber-500/20 border-barber-500 text-white'
-                        : 'bg-dark-600 border-dark-500 text-gray-300 hover:border-barber-500/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-dark-500 flex items-center justify-center">
-                        {barber.avatar
-                          ? <img src={barber.avatar} alt="" className="w-full h-full object-cover" />
-                          : <span>✂️</span>
-                        }
+                {barbers.map((barber) => {
+                  const isUnavail = unavailableBarberIds.includes(barber.id);
+                  return (
+                    <button
+                      key={barber.id}
+                      onClick={() => !isUnavail && setData((d) => ({ ...d, barber_id: barber.id }))}
+                      disabled={isUnavail}
+                      className={`w-full p-4 rounded-xl border text-left transition-all duration-200 ${
+                        isUnavail
+                          ? 'bg-dark-800 border-dark-700 text-gray-600 cursor-not-allowed opacity-60'
+                          : data.barber_id === barber.id
+                          ? 'bg-barber-500/20 border-barber-500 text-white'
+                          : 'bg-dark-600 border-dark-500 text-gray-300 hover:border-barber-500/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-dark-500 flex items-center justify-center">
+                          {barber.avatar
+                            ? <img src={barber.avatar} alt="" className={`w-full h-full object-cover ${isUnavail ? 'grayscale' : ''}`} />
+                            : <span>✂️</span>
+                          }
+                        </div>
+                        <div className="flex-1">
+                          <div className={`font-semibold ${lang === 'am' ? 'font-amharic' : ''}`}>{getBarberName(barber)}</div>
+                          {isUnavail ? (
+                            <div className="text-xs text-red-500/80">🚫 Not available on {data.appointment_date || 'selected date'}</div>
+                          ) : barber.specialty ? (
+                            <div className="text-xs text-barber-400">
+                              {lang === 'am' ? barber.specialty_am || barber.specialty
+                                : lang === 'om' ? barber.specialty_om || barber.specialty
+                                : barber.specialty}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                      <div>
-                        <div className={`font-semibold ${lang === 'am' ? 'font-amharic' : ''}`}>{getBarberName(barber)}</div>
-                        {barber.specialty && (
-                          <div className="text-xs text-barber-400">
-                            {lang === 'am' ? barber.specialty_am || barber.specialty
-                              : lang === 'om' ? barber.specialty_om || barber.specialty
-                              : barber.specialty}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -330,6 +349,19 @@ export default function Booking() {
                 {data.appointment_date && isDayClosed && (
                   <div className="bg-red-500/20 border border-red-500/40 rounded-xl p-4 text-red-400 text-sm">
                     🚫 The shop is closed on this day. Please pick another date.
+                  </div>
+                )}
+
+                {data.appointment_date && !isDayClosed && selectedBarberUnavailable && selectedBarber && (
+                  <div className="bg-orange-500/15 border border-orange-500/40 rounded-xl p-4 text-orange-400 text-sm space-y-2">
+                    <p className="font-semibold">⚠️ {selectedBarber.name} is not available on {data.appointment_date}.</p>
+                    <p className="text-orange-300/80">Please choose a different date, or go back and select "Any Barber".</p>
+                    <button
+                      onClick={() => setData((d) => ({ ...d, barber_id: '', appointment_time: '' }))}
+                      className="mt-1 text-xs font-semibold bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      ↺ Switch to Any Barber
+                    </button>
                   </div>
                 )}
 

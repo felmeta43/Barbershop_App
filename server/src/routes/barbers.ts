@@ -18,6 +18,87 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
+// ── Unavailability endpoints ────────────────────────────────────────────────
+
+// GET /api/barbers/unavailable?date=YYYY-MM-DD
+// Returns IDs of barbers who are unavailable on that date (public, used by booking)
+router.get('/unavailable', async (req: Request, res: Response) => {
+  try {
+    const { date } = req.query;
+    if (!date || typeof date !== 'string') {
+      res.status(400).json({ error: 'date query param required (YYYY-MM-DD)' });
+      return;
+    }
+    const snap = await db.collection('barber_unavailability')
+      .where('date', '==', date)
+      .get();
+    const barber_ids = snap.docs.map((d) => (d.data() as any).barber_id);
+    res.json({ barber_ids });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch unavailability' });
+  }
+});
+
+// GET /api/barbers/:id/unavailable
+// Returns all upcoming unavailable dates for a barber (admin only)
+router.get('/:id/unavailable', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const snap = await db.collection('barber_unavailability')
+      .where('barber_id', '==', req.params.id)
+      .where('date', '>=', today)
+      .orderBy('date')
+      .get();
+    res.json(snap.docs.map((d) => d.data()));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch unavailability' });
+  }
+});
+
+// POST /api/barbers/:id/unavailable  body: { date, reason? }
+// Mark barber unavailable on a date (admin only)
+router.post('/:id/unavailable', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { date, reason } = req.body;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({ error: 'Valid date (YYYY-MM-DD) required' });
+      return;
+    }
+    const barberDoc = await db.collection('barbers').doc(req.params.id).get();
+    if (!barberDoc.exists) { res.status(404).json({ error: 'Barber not found' }); return; }
+    const barber = barberDoc.data() as any;
+
+    // Use {barberId}_{date} as document ID so it's idempotent
+    const docId = `${req.params.id}_${date}`;
+    const record = {
+      id: docId,
+      barber_id: req.params.id,
+      barber_name: barber.name,
+      date,
+      reason: reason || null,
+      created_at: new Date().toISOString(),
+    };
+    await db.collection('barber_unavailability').doc(docId).set(record);
+    res.status(201).json(record);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to set unavailability' });
+  }
+});
+
+// DELETE /api/barbers/:id/unavailable/:date
+// Remove unavailability for a barber on a date (admin only)
+router.delete('/:id/unavailable/:date', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const docId = `${req.params.id}_${req.params.date}`;
+    await db.collection('barber_unavailability').doc(docId).delete();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove unavailability' });
+  }
+});
+
+// ── Barber CRUD ─────────────────────────────────────────────────────────────
+
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const doc = await db.collection('barbers').doc(req.params.id).get();
