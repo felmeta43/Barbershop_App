@@ -10,10 +10,12 @@ router.get('/', async (_req: Request, res: Response) => {
   try {
     const snap = await db.collection('services')
       .where('is_active', '==', true)
-      .orderBy('category')
       .get();
-    res.json(snap.docs.map((d) => d.data()));
+    const services = snap.docs.map((d) => d.data())
+      .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+    res.json(services);
   } catch (err) {
+    console.error('Services fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch services' });
   }
 });
@@ -27,7 +29,7 @@ const serviceSchema = z.object({
   description_om: z.string().optional(),
   price: z.number().positive(),
   duration_minutes: z.number().int().positive(),
-  category: z.enum(['haircut', 'beard', 'combo', 'kids', 'styling', 'other']).default('haircut'),
+  category: z.enum(['haircut', 'beard', 'combo', 'kids', 'styling', 'treatment', 'other']).default('haircut'),
 });
 
 router.post('/', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {

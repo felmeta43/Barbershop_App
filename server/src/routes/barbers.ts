@@ -10,10 +10,11 @@ router.get('/', async (_req: Request, res: Response) => {
   try {
     const snap = await db.collection('barbers')
       .where('is_active', '==', true)
-      .orderBy('name')
       .get();
-    res.json(snap.docs.map((d) => d.data()));
+    const barbers = snap.docs.map((d) => d.data()).sort((a, b) => a.name.localeCompare(b.name));
+    res.json(barbers);
   } catch (err) {
+    console.error('Barbers fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch barbers' });
   }
 });
