@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import db from '../database';
+import { db } from '../firebase';
 import { JWT_SECRET } from '../middleware/auth';
 
 const router = Router();
@@ -12,12 +12,18 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-router.post('/login', (req: Request, res: Response) => {
+router.post('/login', async (req: Request, res: Response) => {
   try {
     const { username, password } = loginSchema.parse(req.body);
-    const user = db.prepare('SELECT * FROM admin_users WHERE username = ?').get(username) as any;
+    const snap = await db.collection('admin_users').where('username', '==', username).limit(1).get();
 
-    if (!user || !bcrypt.compareSync(password, user.password)) {
+    if (snap.empty) {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+
+    const user = snap.docs[0].data() as any;
+    if (!bcrypt.compareSync(password, user.password)) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }

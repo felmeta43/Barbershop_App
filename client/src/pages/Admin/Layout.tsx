@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '../../components/LanguageSwitcher';
 import { useShop } from '../../context/ShopContext';
+import { requestNotificationPermission } from '../../firebase';
+import api from '../../lib/api';
 
 export default function AdminLayout() {
   const { t, i18n } = useTranslation();
@@ -12,6 +14,15 @@ export default function AdminLayout() {
   const { shop, shopT } = useShop();
 
   const user = JSON.parse(localStorage.getItem('admin_user') || '{}');
+
+  useEffect(() => {
+    // Request push notification permission and register FCM token
+    requestNotificationPermission().then((token) => {
+      if (token) {
+        api.post('/notifications/token', { token }).catch(() => {});
+      }
+    });
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');

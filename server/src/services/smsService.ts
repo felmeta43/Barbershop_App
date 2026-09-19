@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../database';
+import { db } from '../firebase';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -157,10 +157,10 @@ export async function sendAppointmentReminder(params: {
 }
 
 function logSms(phone: string, message: string, status: string, appointmentId?: string) {
-  try {
-    db.prepare(`
-      INSERT INTO sms_logs (id, phone, message, status, appointment_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(uuidv4(), phone, message, status, appointmentId || null);
-  } catch {}
+  const id = uuidv4();
+  db.collection('sms_logs').doc(id).set({
+    id, phone, message, status,
+    appointment_id: appointmentId || null,
+    created_at: new Date().toISOString(),
+  }).catch(() => {});
 }

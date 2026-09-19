@@ -1,22 +1,29 @@
 import { Router, Response } from 'express';
-import db from '../database';
+import { db } from '../firebase';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { DEFAULT_SETTINGS } from '../database';
 
 const router = Router();
 
-router.get('/', (_req, res: Response) => {
-  const row = db.prepare('SELECT data FROM shop_settings WHERE id = ?').get('main') as any;
-  res.json(row ? JSON.parse(row.data) : {});
+router.get('/', async (_req, res: Response) => {
+  try {
+    const doc = await db.collection('shop_settings').doc('main').get();
+    res.json(doc.exists ? doc.data() : DEFAULT_SETTINGS);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
 });
 
-router.put('/', authenticate, (req: AuthRequest, res: Response) => {
-  const row = db.prepare('SELECT data FROM shop_settings WHERE id = ?').get('main') as any;
-  const current = row ? JSON.parse(row.data) : {};
-  const updated = { ...current, ...req.body };
-  db.prepare(
-    'INSERT OR REPLACE INTO shop_settings (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
-  ).run('main', JSON.stringify(updated));
-  res.json(updated);
+router.put('/', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const doc = await db.collection('shop_settings').doc('main').get();
+    const current = doc.exists ? doc.data()! : DEFAULT_SETTINGS;
+    const updated = { ...current, ...req.body, updated_at: new Date().toISOString() };
+    await db.collection('shop_settings').doc('main').set(updated);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
 });
 
 export default router;

@@ -2,13 +2,14 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
-import db from '../database';
+import type { Query, DocumentData } from 'firebase-admin/firestore';
+import type { SendResponse } from 'firebase-admin/messaging';
+import { db, messaging } from '../firebase';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { sendBookingConfirmation } from '../services/smsService';
 
 const router = Router();
 
-// Rate limit only new bookings (POST), not reads/availability checks
 const bookingLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 30,
@@ -31,65 +32,89 @@ router.post('/', bookingLimiter, async (req: Request, res: Response) => {
   try {
     const data = appointmentSchema.parse(req.body);
 
-    const service = db.prepare('SELECT * FROM services WHERE id = ? AND is_active = 1').get(data.service_id) as any;
-    if (!service) {
+    // Fetch service
+    const serviceDoc = await db.collection('services').doc(data.service_id).get();
+    if (!serviceDoc.exists || !(serviceDoc.data() as any).is_active) {
       res.status(404).json({ error: 'Service not found' });
       return;
     }
+    const service = serviceDoc.data() as any;
 
-    const barber = data.barber_id
-      ? (db.prepare('SELECT * FROM barbers WHERE id = ? AND is_active = 1').get(data.barber_id) as any)
-      : null;
+    // Fetch barber if specified
+    let barber: any = null;
+    if (data.barber_id) {
+      const barberDoc = await db.collection('barbers').doc(data.barber_id).get();
+      if (barberDoc.exists) barber = barberDoc.data();
+    }
 
-    // Get next queue number for today
-    const queueCount = db.prepare(
-      "SELECT COUNT(*) as cnt FROM appointments WHERE appointment_date = ? AND status != 'cancelled'"
-    ).get(data.appointment_date) as { cnt: number };
-    const queueNumber = (queueCount.cnt || 0) + 1;
+    // Count existing appointments for queue number
+    const countSnap = await db.collection('appointments')
+      .where('appointment_date', '==', data.appointment_date)
+      .where('status', '!=', 'cancelled')
+      .get();
+    const queueNumber = countSnap.size + 1;
 
     const id = uuidv4();
-    db.prepare(`
-      INSERT INTO appointments (id, customer_name, customer_phone, customer_email, barber_id, service_id,
-        appointment_date, appointment_time, queue_number, payment_amount, notes)
-      VALUES (@id, @customer_name, @customer_phone, @customer_email, @barber_id, @service_id,
-        @appointment_date, @appointment_time, @queue_number, @payment_amount, @notes)
-    `).run({
+    const appointment: any = {
       id,
       customer_name: data.customer_name,
       customer_phone: data.customer_phone,
       customer_email: data.customer_email || null,
       barber_id: data.barber_id || null,
+      barber_name: barber?.name || null,
+      barber_name_am: barber?.name_am || null,
+      barber_name_om: barber?.name_om || null,
       service_id: data.service_id,
+      service_name: service.name,
+      service_name_am: service.name_am || null,
+      service_name_om: service.name_om || null,
+      service_price: service.price,
       appointment_date: data.appointment_date,
       appointment_time: data.appointment_time,
+      status: 'pending',
       queue_number: queueNumber,
+      payment_status: 'unpaid',
+      payment_tx_ref: null,
       payment_amount: service.price,
       notes: data.notes || null,
+      created_at: new Date().toISOString(),
+    };
+
+    // Add appointment
+    await db.collection('appointments').doc(id).set(appointment);
+
+    // Add to queue (denormalized)
+    const queueId = uuidv4();
+    await db.collection('queue').doc(queueId).set({
+      id: queueId,
+      appointment_id: id,
+      appointment_date: data.appointment_date,
+      customer_name: data.customer_name,
+      customer_phone: data.customer_phone,
+      appointment_time: data.appointment_time,
+      appointment_status: 'pending',
+      payment_status: 'unpaid',
+      service_name: service.name,
+      duration_minutes: service.duration_minutes,
+      barber_name: barber?.name || null,
+      queue_position: queueNumber,
+      status: 'waiting',
+      called_at: null,
+      served_at: null,
+      created_at: new Date().toISOString(),
     });
 
-    // Add to queue
-    const queueId = uuidv4();
-    db.prepare(`
-      INSERT INTO queue (id, appointment_id, queue_position, status)
-      VALUES (?, ?, ?, 'waiting')
-    `).run(queueId, id, queueNumber);
+    // Send FCM push notification to admin
+    sendAdminPushNotification(data.customer_name, service.name, data.appointment_date, data.appointment_time)
+      .catch(err => console.error('FCM error:', err));
 
-    const appointment = db.prepare(`
-      SELECT a.*, s.name as service_name, s.name_am as service_name_am, s.name_om as service_name_om,
-             b.name as barber_name, b.name_am as barber_name_am, b.name_om as barber_name_om
-      FROM appointments a
-      LEFT JOIN services s ON a.service_id = s.id
-      LEFT JOIN barbers b ON a.barber_id = b.id
-      WHERE a.id = ?
-    `).get(id) as any;
-
-    // Send SMS confirmation (non-blocking) — track whether it succeeds
+    // Send SMS confirmation
     const langMap: Record<string, string> = { am: 'am', om: 'om', en: 'en' };
-    const smsPromise = sendBookingConfirmation({
+    const sms_sent = await sendBookingConfirmation({
       phone: data.customer_phone,
       customerName: data.customer_name,
-      serviceName: appointment.service_name,
-      barberName: appointment.barber_name || 'Any Barber',
+      serviceName: service.name,
+      barberName: barber?.name || 'Any Barber',
       date: data.appointment_date,
       time: data.appointment_time,
       queueNumber,
@@ -97,7 +122,6 @@ router.post('/', bookingLimiter, async (req: Request, res: Response) => {
       lang: langMap[data.lang],
     }).catch((err) => { console.error('SMS error:', err); return false; });
 
-    const sms_sent = await smsPromise;
     res.status(201).json({ ...appointment, queue_number: queueNumber, sms_sent });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -111,86 +135,129 @@ router.post('/', bookingLimiter, async (req: Request, res: Response) => {
   }
 });
 
-router.get('/', authenticate, (req: AuthRequest, res: Response) => {
-  const { date, status } = req.query;
-  let query = `
-    SELECT a.*, s.name as service_name, s.price as service_price,
-           b.name as barber_name
-    FROM appointments a
-    LEFT JOIN services s ON a.service_id = s.id
-    LEFT JOIN barbers b ON a.barber_id = b.id
-    WHERE 1=1
-  `;
-  const params: any[] = [];
+async function sendAdminPushNotification(customerName: string, serviceName: string, date: string, time: string) {
+  const tokensSnap = await db.collection('fcm_tokens').get();
+  if (tokensSnap.empty) return;
+  const tokens = tokensSnap.docs.map((d) => (d.data() as { token: string }).token).filter(Boolean);
+  if (!tokens.length) return;
 
-  if (date) { query += ' AND a.appointment_date = ?'; params.push(date); }
-  if (status) { query += ' AND a.status = ?'; params.push(status); }
+  const message = {
+    notification: {
+      title: 'New Appointment Booked',
+      body: `${customerName} booked ${serviceName} on ${date} at ${time}`,
+    },
+    tokens,
+  };
+  const result = await messaging.sendEachForMulticast(message);
+  console.log(`FCM: ${result.successCount} sent, ${result.failureCount} failed`);
 
-  query += ' ORDER BY a.appointment_date, a.appointment_time';
+  // Remove invalid tokens
+  const invalidTokenDocs: string[] = [];
+  result.responses.forEach((r: SendResponse, idx: number) => {
+    if (!r.success && r.error?.code === 'messaging/registration-token-not-registered') {
+      invalidTokenDocs.push(tokens[idx]);
+    }
+  });
+  if (invalidTokenDocs.length) {
+    const batch = db.batch();
+    for (const token of invalidTokenDocs) {
+      const snap = await db.collection('fcm_tokens').where('token', '==', token).get();
+      snap.docs.forEach((d) => batch.delete(d.ref));
+    }
+    await batch.commit();
+  }
+}
 
-  const appointments = db.prepare(query).all(...params);
-  res.json(appointments);
+router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { date, status } = req.query;
+    let query: Query<DocumentData> = db.collection('appointments');
+
+    if (date) query = query.where('appointment_date', '==', date as string);
+    if (status) query = query.where('status', '==', status as string);
+
+    query = query.orderBy('appointment_date').orderBy('appointment_time');
+
+    const snap = await query.get();
+    res.json(snap.docs.map((d) => d.data()));
+  } catch (err) {
+    console.error('Appointments fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch appointments' });
+  }
 });
 
-router.get('/:id', (req: Request, res: Response) => {
-  const appointment = db.prepare(`
-    SELECT a.*, s.name as service_name, s.name_am as service_name_am,
-           s.name_om as service_name_om, s.price as service_price,
-           b.name as barber_name, b.name_am as barber_name_am, b.name_om as barber_name_om
-    FROM appointments a
-    LEFT JOIN services s ON a.service_id = s.id
-    LEFT JOIN barbers b ON a.barber_id = b.id
-    WHERE a.id = ?
-  `).get(req.params.id);
+router.get('/check/availability', async (req: Request, res: Response) => {
+  try {
+    const { date, barber_id } = req.query;
+    if (!date) { res.status(400).json({ error: 'Date required' }); return; }
 
-  if (!appointment) {
-    res.status(404).json({ error: 'Appointment not found' });
-    return;
+    let query: Query<DocumentData> = db.collection('appointments')
+      .where('appointment_date', '==', date as string)
+      .where('status', '!=', 'cancelled');
+
+    if (barber_id) query = query.where('barber_id', '==', barber_id as string);
+
+    const snap = await query.get();
+    const booked_times = snap.docs.map((d) => (d.data() as any).appointment_time);
+    res.json({ booked_times });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to check availability' });
   }
-  res.json(appointment);
 });
 
-router.patch('/:id/status', authenticate, (req: AuthRequest, res: Response) => {
-  const { status } = req.body;
-  const validStatuses = ['pending', 'confirmed', 'in-progress', 'completed', 'cancelled', 'no-show'];
-  if (!validStatuses.includes(status)) {
-    res.status(400).json({ error: 'Invalid status' });
-    return;
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const doc = await db.collection('appointments').doc(req.params.id).get();
+    if (!doc.exists) { res.status(404).json({ error: 'Appointment not found' }); return; }
+    res.json(doc.data());
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch appointment' });
   }
-  db.prepare('UPDATE appointments SET status = ? WHERE id = ?').run(status, req.params.id);
-  res.json({ success: true });
 });
 
-router.patch('/:id/payment', authenticate, (req: AuthRequest, res: Response) => {
-  const { payment_status, payment_amount } = req.body;
-  const existing = db.prepare('SELECT * FROM appointments WHERE id = ?').get(req.params.id) as any;
-  if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+router.patch('/:id/status', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['pending', 'confirmed', 'in-progress', 'completed', 'cancelled', 'no-show'];
+    if (!validStatuses.includes(status)) { res.status(400).json({ error: 'Invalid status' }); return; }
 
-  const validStatuses = ['paid', 'unpaid'];
-  if (payment_status && !validStatuses.includes(payment_status)) {
-    res.status(400).json({ error: 'Invalid payment status' }); return;
+    await db.collection('appointments').doc(req.params.id).update({ status });
+    // Sync to queue doc
+    const qSnap = await db.collection('queue').where('appointment_id', '==', req.params.id).limit(1).get();
+    if (!qSnap.empty) await qSnap.docs[0].ref.update({ appointment_status: status });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update status' });
   }
-
-  db.prepare('UPDATE appointments SET payment_status = ?, payment_amount = ? WHERE id = ?').run(
-    payment_status ?? existing.payment_status,
-    payment_amount !== undefined ? Number(payment_amount) : existing.payment_amount,
-    req.params.id
-  );
-  res.json({ success: true });
 });
 
-router.get('/check/availability', (req: Request, res: Response) => {
-  const { date, barber_id } = req.query;
-  if (!date) {
-    res.status(400).json({ error: 'Date required' });
-    return;
-  }
-  let query = "SELECT appointment_time FROM appointments WHERE appointment_date = ? AND status != 'cancelled'";
-  const params: any[] = [date];
-  if (barber_id) { query += ' AND barber_id = ?'; params.push(barber_id); }
+router.patch('/:id/payment', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { payment_status, payment_amount } = req.body;
+    const doc = await db.collection('appointments').doc(req.params.id).get();
+    if (!doc.exists) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const booked = db.prepare(query).all(...params).map((r: any) => r.appointment_time);
-  res.json({ booked_times: booked });
+    const validStatuses = ['paid', 'unpaid'];
+    if (payment_status && !validStatuses.includes(payment_status)) {
+      res.status(400).json({ error: 'Invalid payment status' }); return;
+    }
+
+    const updates: any = {};
+    if (payment_status !== undefined) updates.payment_status = payment_status;
+    if (payment_amount !== undefined) updates.payment_amount = Number(payment_amount);
+    await db.collection('appointments').doc(req.params.id).update(updates);
+
+    // Sync payment_status to queue doc
+    if (payment_status !== undefined) {
+      const qSnap = await db.collection('queue').where('appointment_id', '==', req.params.id).limit(1).get();
+      if (!qSnap.empty) await qSnap.docs[0].ref.update({ payment_status });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update payment' });
+  }
 });
 
 export default router;

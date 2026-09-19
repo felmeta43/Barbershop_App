@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import db from '../database';
+import { db } from '../firebase';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { sendQueueCallNotification } from '../services/smsService';
 
@@ -10,88 +10,102 @@ function localToday(): string {
 
 const router = Router();
 
-router.get('/today', (_req: Request, res: Response) => {
-  const today = localToday();
-  const queue = db.prepare(`
-    SELECT q.*, a.customer_name, a.customer_phone, a.appointment_time,
-           a.status as appointment_status, a.payment_status,
-           s.name as service_name, s.duration_minutes,
-           b.name as barber_name
-    FROM queue q
-    JOIN appointments a ON q.appointment_id = a.id
-    LEFT JOIN services s ON a.service_id = s.id
-    LEFT JOIN barbers b ON a.barber_id = b.id
-    WHERE a.appointment_date = ?
-    ORDER BY q.queue_position ASC
-  `).all(today);
-  res.json(queue);
+router.get('/today', async (_req: Request, res: Response) => {
+  try {
+    const today = localToday();
+    const snap = await db.collection('queue')
+      .where('appointment_date', '==', today)
+      .orderBy('queue_position')
+      .get();
+    res.json(snap.docs.map((d) => d.data()));
+  } catch (err) {
+    console.error('Queue today error:', err);
+    res.status(500).json({ error: 'Failed to fetch queue' });
+  }
 });
 
-router.get('/stats', (_req: Request, res: Response) => {
-  const today = localToday();
-  const stats = db.prepare(`
-    SELECT
-      COUNT(*) as total,
-      SUM(CASE WHEN q.status = 'waiting' THEN 1 ELSE 0 END) as waiting,
-      SUM(CASE WHEN q.status = 'called' THEN 1 ELSE 0 END) as called,
-      SUM(CASE WHEN q.status = 'served' THEN 1 ELSE 0 END) as served,
-      SUM(CASE WHEN a.status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
-    FROM queue q
-    JOIN appointments a ON q.appointment_id = a.id
-    WHERE a.appointment_date = ?
-  `).get(today);
-  res.json(stats);
+router.get('/stats', async (_req: Request, res: Response) => {
+  try {
+    const today = localToday();
+    const snap = await db.collection('queue')
+      .where('appointment_date', '==', today)
+      .get();
+
+    const docs = snap.docs.map((d) => d.data() as any);
+    const stats = {
+      total: docs.length,
+      waiting: docs.filter((d: any) => d.status === 'waiting').length,
+      called: docs.filter((d: any) => d.status === 'called').length,
+      served: docs.filter((d: any) => d.status === 'served').length,
+      cancelled: docs.filter((d: any) => d.appointment_status === 'cancelled').length,
+    };
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
 });
 
 router.patch('/:id/call', authenticate, async (req: AuthRequest, res: Response) => {
-  const entry = db.prepare(`
-    SELECT q.*, a.customer_name, a.customer_phone, a.queue_number,
-           b.name as barber_name
-    FROM queue q
-    JOIN appointments a ON q.appointment_id = a.id
-    LEFT JOIN barbers b ON a.barber_id = b.id
-    WHERE q.id = ?
-  `).get(req.params.id) as any;
+  try {
+    const doc = await db.collection('queue').doc(req.params.id).get();
+    if (!doc.exists) { res.status(404).json({ error: 'Queue entry not found' }); return; }
+    const entry = doc.data() as any;
 
-  if (!entry) {
-    res.status(404).json({ error: 'Queue entry not found' });
-    return;
+    const batch = db.batch();
+    batch.update(doc.ref, { status: 'called', called_at: new Date().toISOString() });
+    batch.update(db.collection('appointments').doc(entry.appointment_id), { status: 'in-progress' });
+    await batch.commit();
+
+    // Get queue_number from appointment for SMS
+    const apptDoc = await db.collection('appointments').doc(entry.appointment_id).get();
+    const appt = apptDoc.data() as any;
+
+    sendQueueCallNotification({
+      phone: entry.customer_phone,
+      customerName: entry.customer_name,
+      queueNumber: appt?.queue_number || entry.queue_position,
+      barberName: entry.barber_name || 'Your barber',
+      appointmentId: entry.appointment_id,
+    }).catch(console.error);
+
+    res.json({ success: true, message: 'Customer called and SMS sent' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to call customer' });
   }
-
-  db.prepare("UPDATE queue SET status = 'called', called_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
-  db.prepare("UPDATE appointments SET status = 'in-progress' WHERE id = ?").run(entry.appointment_id);
-
-  sendQueueCallNotification({
-    phone: entry.customer_phone,
-    customerName: entry.customer_name,
-    queueNumber: entry.queue_number,
-    barberName: entry.barber_name || 'Your barber',
-    appointmentId: entry.appointment_id,
-  }).catch(console.error);
-
-  res.json({ success: true, message: 'Customer called and SMS sent' });
 });
 
-router.patch('/:id/serve', authenticate, (req: AuthRequest, res: Response) => {
-  const entry = db.prepare('SELECT * FROM queue WHERE id = ?').get(req.params.id) as any;
-  if (!entry) {
-    res.status(404).json({ error: 'Queue entry not found' });
-    return;
+router.patch('/:id/serve', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const doc = await db.collection('queue').doc(req.params.id).get();
+    if (!doc.exists) { res.status(404).json({ error: 'Queue entry not found' }); return; }
+    const entry = doc.data() as any;
+
+    const batch = db.batch();
+    batch.update(doc.ref, { status: 'served', served_at: new Date().toISOString(), appointment_status: 'completed' });
+    batch.update(db.collection('appointments').doc(entry.appointment_id), { status: 'completed' });
+    await batch.commit();
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to serve customer' });
   }
-  db.prepare("UPDATE queue SET status = 'served', served_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
-  db.prepare("UPDATE appointments SET status = 'completed' WHERE id = ?").run(entry.appointment_id);
-  res.json({ success: true });
 });
 
-router.patch('/:id/skip', authenticate, (req: AuthRequest, res: Response) => {
-  const entry = db.prepare('SELECT * FROM queue WHERE id = ?').get(req.params.id) as any;
-  if (!entry) {
-    res.status(404).json({ error: 'Queue entry not found' });
-    return;
+router.patch('/:id/skip', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const doc = await db.collection('queue').doc(req.params.id).get();
+    if (!doc.exists) { res.status(404).json({ error: 'Queue entry not found' }); return; }
+    const entry = doc.data() as any;
+
+    const batch = db.batch();
+    batch.update(doc.ref, { status: 'skipped', appointment_status: 'no-show' });
+    batch.update(db.collection('appointments').doc(entry.appointment_id), { status: 'no-show' });
+    await batch.commit();
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to skip customer' });
   }
-  db.prepare("UPDATE queue SET status = 'skipped' WHERE id = ?").run(req.params.id);
-  db.prepare("UPDATE appointments SET status = 'no-show' WHERE id = ?").run(entry.appointment_id);
-  res.json({ success: true });
 });
 
 export default router;

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
-import db from '../database';
+import { db } from '../firebase';
 import { initializeChapaPayment, verifyChapaPayment } from '../services/paymentService';
 
 function normalizePhone(phone: string): string {
@@ -24,27 +24,15 @@ router.post('/initialize', async (req: Request, res: Response) => {
   try {
     const { appointment_id, email } = initSchema.parse(req.body);
 
-    // Detect the actual host the user is accessing from (works for IP:port, localhost, domain)
     const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
     const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
     const baseUrl = process.env.CLIENT_URL || `${protocol}://${host}`;
 
-    const appointment = db.prepare(`
-      SELECT a.*, s.name as service_name, s.price as service_price
-      FROM appointments a
-      JOIN services s ON a.service_id = s.id
-      WHERE a.id = ?
-    `).get(appointment_id) as any;
+    const apptDoc = await db.collection('appointments').doc(appointment_id).get();
+    if (!apptDoc.exists) { res.status(404).json({ error: 'Appointment not found' }); return; }
+    const appointment = apptDoc.data() as any;
 
-    if (!appointment) {
-      res.status(404).json({ error: 'Appointment not found' });
-      return;
-    }
-
-    if (appointment.payment_status === 'paid') {
-      res.status(400).json({ error: 'Already paid' });
-      return;
-    }
+    if (appointment.payment_status === 'paid') { res.status(400).json({ error: 'Already paid' }); return; }
 
     const txRef = `BARBER-${uuidv4().replace(/-/g, '').slice(0, 16).toUpperCase()}`;
     const nameParts = appointment.customer_name.split(' ');
@@ -64,12 +52,9 @@ router.post('/initialize', async (req: Request, res: Response) => {
       description: `Barbershop - ${appointment.service_name}`,
     });
 
-    db.prepare('UPDATE appointments SET payment_tx_ref = ? WHERE id = ?').run(txRef, appointment_id);
+    await db.collection('appointments').doc(appointment_id).update({ payment_tx_ref: txRef });
 
-    res.json({
-      checkout_url: chapaRes.data.checkout_url,
-      tx_ref: txRef,
-    });
+    res.json({ checkout_url: chapaRes.data.checkout_url, tx_ref: txRef });
   } catch (err: any) {
     console.error('Payment init error:', err);
     res.status(500).json({ error: err.message || 'Payment initialization failed' });
@@ -82,9 +67,10 @@ router.get('/verify/:txRef', async (req: Request, res: Response) => {
     const result = await verifyChapaPayment(txRef);
 
     if (result.data.status === 'success') {
-      db.prepare(
-        "UPDATE appointments SET payment_status = 'paid', payment_tx_ref = ? WHERE payment_tx_ref = ?"
-      ).run(txRef, txRef);
+      const snap = await db.collection('appointments').where('payment_tx_ref', '==', txRef).limit(1).get();
+      if (!snap.empty) {
+        await snap.docs[0].ref.update({ payment_status: 'paid' });
+      }
     }
 
     res.json(result);
@@ -93,14 +79,17 @@ router.get('/verify/:txRef', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/webhook', (req: Request, res: Response) => {
-  const { trx_ref, status } = req.body;
-  if (trx_ref && status === 'success') {
-    db.prepare(
-      "UPDATE appointments SET payment_status = 'paid' WHERE payment_tx_ref = ?"
-    ).run(trx_ref);
+router.post('/webhook', async (req: Request, res: Response) => {
+  try {
+    const { trx_ref, status } = req.body;
+    if (trx_ref && status === 'success') {
+      const snap = await db.collection('appointments').where('payment_tx_ref', '==', trx_ref).limit(1).get();
+      if (!snap.empty) await snap.docs[0].ref.update({ payment_status: 'paid' });
+    }
+    res.json({ received: true });
+  } catch {
+    res.json({ received: true });
   }
-  res.json({ received: true });
 });
 
 export default router;
