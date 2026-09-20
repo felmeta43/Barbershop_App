@@ -11,9 +11,9 @@ function localToday(): string {
 
 const router = Router();
 
-router.get('/today', async (_req: Request, res: Response) => {
+router.get('/today', async (req: Request, res: Response) => {
   try {
-    const today = localToday();
+    const today = (req.query.date as string) || localToday();
     let snap = await db.collection('queue')
       .where('appointment_date', '==', today)
       .get();
@@ -34,9 +34,9 @@ router.get('/today', async (_req: Request, res: Response) => {
   }
 });
 
-router.get('/stats', async (_req: Request, res: Response) => {
+router.get('/stats', async (req: Request, res: Response) => {
   try {
-    const today = localToday();
+    const today = (req.query.date as string) || localToday();
     let snap = await db.collection('queue')
       .where('appointment_date', '==', today)
       .get();

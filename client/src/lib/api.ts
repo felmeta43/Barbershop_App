@@ -59,9 +59,14 @@ export const appointmentsApi = {
     api.get('/appointments/check/availability', { params: { date, barber_id: barberId } }).then((r) => r.data),
 };
 
+function localDateStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export const queueApi = {
-  getToday: () => api.get('/queue/today').then((r) => r.data),
-  getStats: () => api.get('/queue/stats').then((r) => r.data),
+  getToday: () => api.get('/queue/today', { params: { date: localDateStr() } }).then((r) => r.data),
+  getStats: () => api.get('/queue/stats', { params: { date: localDateStr() } }).then((r) => r.data),
   call: (id: string) => api.patch(`/queue/${id}/call`).then((r) => r.data),
   serve: (id: string) => api.patch(`/queue/${id}/serve`).then((r) => r.data),
   skip: (id: string) => api.patch(`/queue/${id}/skip`).then((r) => r.data),
