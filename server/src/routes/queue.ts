@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../firebase';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { sendQueueCallNotification } from '../services/smsService';
+import { resyncQueueFromAppointments } from '../services/autoStatusUpdate';
 
 function localToday(): string {
   const d = new Date();
@@ -13,9 +14,18 @@ const router = Router();
 router.get('/today', async (_req: Request, res: Response) => {
   try {
     const today = localToday();
-    const snap = await db.collection('queue')
+    let snap = await db.collection('queue')
       .where('appointment_date', '==', today)
       .get();
+
+    // If no queue entries exist yet, sync from today's appointments
+    if (snap.empty) {
+      await resyncQueueFromAppointments(today);
+      snap = await db.collection('queue')
+        .where('appointment_date', '==', today)
+        .get();
+    }
+
     const queue = snap.docs.map((d) => d.data()).sort((a, b) => a.queue_position - b.queue_position);
     res.json(queue);
   } catch (err) {
@@ -27,9 +37,16 @@ router.get('/today', async (_req: Request, res: Response) => {
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
     const today = localToday();
-    const snap = await db.collection('queue')
+    let snap = await db.collection('queue')
       .where('appointment_date', '==', today)
       .get();
+
+    if (snap.empty) {
+      await resyncQueueFromAppointments(today);
+      snap = await db.collection('queue')
+        .where('appointment_date', '==', today)
+        .get();
+    }
 
     const docs = snap.docs.map((d) => d.data() as any);
     const stats = {
