@@ -1,12 +1,17 @@
+import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { queueApi } from '../../lib/api';
 import { QueueEntry, QueueStats } from '../../lib/types';
 
+const PAGE_SIZE = 15;
+
 export default function QueueManagement() {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
 
   const { data: queue = [], refetch, isFetching } = useQuery<QueueEntry[]>({
     queryKey: ['admin-queue'],
@@ -31,7 +36,7 @@ export default function QueueManagement() {
 
   const serveMutation = useMutation({
     mutationFn: (id: string) => queueApi.serve(id),
-    onSuccess: () => { toast.success('Marked as served!'); invalidate(); },
+    onSuccess: () => { toast.success('Marked as completed!'); invalidate(); },
     onError: () => toast.error(t('common.error')),
   });
 
@@ -54,6 +59,30 @@ export default function QueueManagement() {
     served: 'bg-blue-500/20 text-blue-400',
     skipped: 'bg-red-500/20 text-red-400',
   };
+
+  const statusLabel: Record<string, string> = {
+    waiting: 'Waiting',
+    called: 'In Progress',
+    served: 'Completed',
+    skipped: 'Skipped',
+  };
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return queue;
+    return queue.filter((e) =>
+      e.customer_name?.toLowerCase().includes(q) ||
+      e.customer_phone?.toLowerCase().includes(q) ||
+      e.service_name?.toLowerCase().includes(q) ||
+      e.barber_name?.toLowerCase().includes(q)
+    );
+  }, [queue, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const handleSearch = (v: string) => { setSearch(v); setPage(1); };
 
   return (
     <div>
@@ -81,7 +110,7 @@ export default function QueueManagement() {
         {[
           { label: t('admin.stats.total'), value: stats?.total || 0, color: 'text-white' },
           { label: t('queue.waiting'), value: stats?.waiting || 0, color: 'text-yellow-400' },
-          { label: t('queue.status.called'), value: stats?.called || 0, color: 'text-green-400' },
+          { label: 'In Progress', value: stats?.called || 0, color: 'text-green-400' },
           { label: t('queue.status.served'), value: stats?.served || 0, color: 'text-blue-400' },
         ].map((s) => (
           <div key={s.label} className="bg-dark-700 rounded-xl border border-dark-600 p-4 text-center">
@@ -91,15 +120,26 @@ export default function QueueManagement() {
         ))}
       </div>
 
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search by name, phone, service or barber…"
+          value={search}
+          onChange={(e) => handleSearch(e.target.value)}
+          className="w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-barber-500"
+        />
+      </div>
+
       {/* Queue cards */}
-      {queue.length === 0 ? (
+      {paginated.length === 0 ? (
         <div className="text-center py-20 text-gray-500">
           <div className="text-5xl mb-4">💈</div>
-          <p>{t('queue.empty')}</p>
+          <p>{search ? 'No results found' : t('queue.empty')}</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {queue.map((entry) => (
+          {paginated.map((entry) => (
             <div
               key={entry.id}
               className={`rounded-2xl border p-4 sm:p-5 transition-all ${statusColors[entry.status] || 'border-dark-600 bg-dark-700'}`}
@@ -114,8 +154,8 @@ export default function QueueManagement() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-white font-bold text-lg">{entry.customer_name}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusBadge[entry.status]}`}>
-                      {t(`queue.status.${entry.status}`)}
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusBadge[entry.status] || 'bg-gray-500/20 text-gray-400'}`}>
+                      {statusLabel[entry.status] || entry.status}
                     </span>
                     {entry.payment_status === 'paid' && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">✓ Paid</span>
@@ -131,7 +171,7 @@ export default function QueueManagement() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-2 flex-wrap shrink-0">
                   {entry.status === 'waiting' && (
                     <>
                       <button
@@ -140,6 +180,13 @@ export default function QueueManagement() {
                         className="bg-green-600 hover:bg-green-500 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
                       >
                         📢 {t('admin.call_next')}
+                      </button>
+                      <button
+                        onClick={() => serveMutation.mutate(entry.id)}
+                        disabled={serveMutation.isPending}
+                        className="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        ✅ Complete
                       </button>
                       <button
                         onClick={() => skipMutation.mutate(entry.id)}
@@ -156,13 +203,46 @@ export default function QueueManagement() {
                       disabled={serveMutation.isPending}
                       className="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
                     >
-                      ✅ {t('admin.mark_served')}
+                      ✅ Complete
                     </button>
                   )}
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1.5 rounded-lg border border-dark-600 text-gray-400 hover:text-white hover:border-dark-500 disabled:opacity-30 disabled:cursor-not-allowed text-sm transition-colors"
+          >
+            ← Prev
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPage(p)}
+              className={`w-8 h-8 rounded-lg text-sm font-semibold transition-colors ${
+                p === currentPage
+                  ? 'bg-barber-500 text-dark-900'
+                  : 'border border-dark-600 text-gray-400 hover:text-white hover:border-dark-500'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1.5 rounded-lg border border-dark-600 text-gray-400 hover:text-white hover:border-dark-500 disabled:opacity-30 disabled:cursor-not-allowed text-sm transition-colors"
+          >
+            Next →
+          </button>
         </div>
       )}
     </div>

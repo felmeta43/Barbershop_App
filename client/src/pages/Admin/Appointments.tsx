@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -7,6 +7,7 @@ import { Appointment } from '../../lib/types';
 import { useShop } from '../../context/ShopContext';
 
 const STATUS_OPTIONS = ['pending', 'confirmed', 'in-progress', 'completed', 'cancelled', 'no-show'];
+const PAGE_SIZE = 15;
 
 function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -18,6 +19,8 @@ export default function Appointments() {
   const { currencySymbol } = useShop();
   const [dateFilter, setDateFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   // Track which appointment is having its price edited: id → draft value
   const [editingPrice, setEditingPrice] = useState<Record<string, string>>({});
 
@@ -27,6 +30,22 @@ export default function Appointments() {
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['appointments'] });
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return appointments;
+    return appointments.filter((a) =>
+      a.customer_name?.toLowerCase().includes(q) ||
+      a.customer_phone?.toLowerCase().includes(q) ||
+      a.service_name?.toLowerCase().includes(q) ||
+      a.barber_name?.toLowerCase().includes(q)
+    );
+  }, [appointments, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const handleSearch = (v: string) => { setSearch(v); setPage(1); };
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => appointmentsApi.updateStatus(id, status),
@@ -138,11 +157,22 @@ export default function Appointments() {
         </button>
       </div>
 
+      {/* Live search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search by name, phone, service or barber…"
+          value={search}
+          onChange={(e) => handleSearch(e.target.value)}
+          className="w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-barber-500"
+        />
+      </div>
+
       {isLoading ? (
         <div className="text-center py-12 text-gray-500">{t('common.loading')}</div>
-      ) : appointments.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
-          {dateFilter ? `No appointments on ${dateFilter}` : 'No appointments found'}
+          {search ? 'No results found' : dateFilter ? `No appointments on ${dateFilter}` : 'No appointments found'}
         </div>
       ) : (
         <div className="bg-dark-700 rounded-2xl border border-dark-600 overflow-hidden">
@@ -158,7 +188,7 @@ export default function Appointments() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-600">
-                {appointments.map((appt) => {
+                {paginated.map((appt) => {
                   const isPriceEditing = appt.id in editingPrice;
                   const isPaid = appt.payment_status === 'paid';
 
@@ -298,6 +328,44 @@ export default function Appointments() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-gray-500 text-sm">
+            {filtered.length} result{filtered.length !== 1 ? 's' : ''} · page {currentPage} of {totalPages}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-dark-600 text-gray-400 hover:text-white hover:border-dark-500 disabled:opacity-30 text-sm transition-colors"
+            >
+              ← Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`w-8 h-8 rounded-lg text-sm font-semibold transition-colors ${
+                  p === currentPage
+                    ? 'bg-barber-500 text-dark-900'
+                    : 'border border-dark-600 text-gray-400 hover:text-white hover:border-dark-500'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg border border-dark-600 text-gray-400 hover:text-white hover:border-dark-500 disabled:opacity-30 text-sm transition-colors"
+            >
+              Next →
+            </button>
           </div>
         </div>
       )}

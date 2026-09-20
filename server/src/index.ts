@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import { autoSeed } from './database';
+import { autoUpdateQueueStatuses } from './services/autoStatusUpdate';
 import authRoutes from './routes/auth';
 import barberRoutes from './routes/barbers';
 import serviceRoutes from './routes/services';
@@ -85,6 +86,9 @@ app.listen(PORT, async () => {
     } catch (err) {
       console.error('Firestore seed error:', err);
     }
+    // Run once on startup then every 60 s to auto-progress queue statuses
+    autoUpdateQueueStatuses().catch(console.error);
+    setInterval(() => autoUpdateQueueStatuses().catch(console.error), 60_000);
   }
 });
 
