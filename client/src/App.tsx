@@ -62,7 +62,6 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Navigate to="appointments" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="queue" element={<QueueManagement />} />
               <Route path="appointments" element={<Appointments />} />
