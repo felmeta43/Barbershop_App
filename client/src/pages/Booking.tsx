@@ -41,49 +41,52 @@ function localDateStr(offsetDays = 0): string {
 const STEPS = ['service', 'barber', 'datetime', 'details', 'payment', 'confirm'] as const;
 type Step = typeof STEPS[number];
 
+// Firestore document limit is 1 MB. Base64 overhead is ~33%, so target
+// a compressed output under ~700 KB to stay safely below the limit.
 async function compressImage(file: File): Promise<string> {
-  // Try canvas compression first; fall back to raw base64 if it fails
-  // (HEIC from iPhone or canvas security errors on some mobile browsers)
-  const readAsDataURL = (): Promise<string> =>
+  const compressViaCanvas = (src: string): Promise<string> =>
     new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      try {
-        const MAX = 1200;
+      const img = new Image();
+      img.onload = () => {
+        // Max 800px on the longest side, 60% JPEG quality → typically 50–200 KB base64
+        const MAX = 800;
         const scale = Math.min(1, MAX / Math.max(img.width || 1, img.height || 1));
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(img.width * scale);
         canvas.height = Math.round(img.height * scale);
         const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('no ctx');
+        if (!ctx) { reject(new Error('no ctx')); return; }
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const result = canvas.toDataURL('image/jpeg', 0.75);
-        // If canvas gives back a blank/tiny result, fall back to FileReader
-        if (result.length < 1000) throw new Error('blank canvas');
+        const result = canvas.toDataURL('image/jpeg', 0.6);
+        if (result.length < 1000) { reject(new Error('blank')); return; }
         resolve(result);
-      } catch {
-        readAsDataURL().then(resolve).catch(() => resolve(''));
-      }
-    };
+      };
+      img.onerror = reject;
+      img.src = src;
+    });
 
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      // Canvas approach failed entirely (e.g. HEIC) — use FileReader
-      readAsDataURL().then(resolve).catch(() => resolve(''));
-    };
+  // Primary path: object URL → canvas compress
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const result = await compressViaCanvas(objectUrl);
+    URL.revokeObjectURL(objectUrl);
+    return result;
+  } catch {
+    URL.revokeObjectURL(objectUrl);
+  }
 
-    img.src = url;
-  });
+  // Fallback: read as data URL (works for HEIC/unusual formats) → canvas compress
+  try {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    return await compressViaCanvas(dataUrl);
+  } catch {
+    return '';
+  }
 }
 
 interface BookingData {
