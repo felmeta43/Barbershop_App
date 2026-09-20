@@ -43,7 +43,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
 app.use('/api/', limiter);
