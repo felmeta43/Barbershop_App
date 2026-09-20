@@ -314,7 +314,7 @@ router.patch('/:id/payment', authenticate, async (req: AuthRequest, res: Respons
     const doc = await db.collection('appointments').doc(req.params.id).get();
     if (!doc.exists) { res.status(404).json({ error: 'Not found' }); return; }
 
-    const validStatuses = ['paid', 'unpaid'];
+    const validStatuses = ['paid', 'unpaid', 'declined'];
     if (payment_status && !validStatuses.includes(payment_status)) {
       res.status(400).json({ error: 'Invalid payment status' }); return;
     }
