@@ -46,6 +46,7 @@ export default {
         barber: 'ባርበር ይምረጡ',
         datetime: 'ቀን እና ሰዓት',
         details: 'መረጃዎ',
+        payment: 'ክፍያ',
         confirm: 'ያረጋግጡ',
       },
       service_placeholder: 'አገልግሎት ይምረጡ',

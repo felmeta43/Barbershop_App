@@ -82,3 +82,14 @@ export const settingsApi = {
   get: () => api.get('/settings').then((r) => r.data),
   update: (data: any) => api.put('/settings', data).then((r) => r.data),
 };
+
+export const banksApi = {
+  getAll: () => api.get('/banks').then((r) => r.data),
+  create: (data: any) => api.post('/banks', data).then((r) => r.data),
+  update: (id: string, data: any) => api.put(`/banks/${id}`, data).then((r) => r.data),
+  delete: (id: string) => api.delete(`/banks/${id}`).then((r) => r.data),
+  getScreenshot: (appointmentId: string) =>
+    api.get(`/appointments/${appointmentId}/bank-screenshot`).then((r) => r.data),
+  verifyTransfer: (appointmentId: string) =>
+    api.patch(`/appointments/${appointmentId}/verify-bank-transfer`).then((r) => r.data),
+};

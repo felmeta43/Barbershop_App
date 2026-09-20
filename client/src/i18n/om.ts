@@ -46,6 +46,7 @@ export default {
         barber: 'Barbera Filadhu',
         datetime: 'Guyyaa fi Sa\'aa',
         details: 'Odeeffannoo Kee',
+        payment: 'Kaffalttii',
         confirm: 'Mirkaneessi',
       },
       service_placeholder: 'Tajaajila filadhu',

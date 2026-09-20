@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { appointmentsApi } from '../../lib/api';
+import { appointmentsApi, banksApi } from '../../lib/api';
 import { Appointment } from '../../lib/types';
 import { useShop } from '../../context/ShopContext';
 
@@ -33,6 +33,23 @@ export default function Appointments() {
     onSuccess: () => { toast.success('Status updated'); invalidate(); },
     onError: () => toast.error(t('common.error')),
   });
+
+  const [screenshotModal, setScreenshotModal] = useState<{ id: string; url: string } | null>(null);
+
+  const verifyMutation = useMutation({
+    mutationFn: (id: string) => banksApi.verifyTransfer(id),
+    onSuccess: () => { toast.success('Payment verified ✓'); invalidate(); },
+    onError: () => toast.error('Failed to verify'),
+  });
+
+  const loadScreenshot = async (id: string) => {
+    try {
+      const data = await banksApi.getScreenshot(id);
+      setScreenshotModal({ id, url: data.screenshot });
+    } catch {
+      toast.error('No screenshot found');
+    }
+  };
 
   const paymentMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: { payment_status?: string; payment_amount?: number } }) =>
@@ -203,13 +220,16 @@ export default function Appointments() {
                         )}
                       </td>
 
-                      {/* Payment status + Mark as Paid */}
+                      {/* Payment status */}
                       <td className="px-4 py-3">
                         {isPaid ? (
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-500/20 text-green-400">
                               ✓ Paid
                             </span>
+                            {appt.payment_method === 'bank_transfer' && (
+                              <span className="text-xs text-blue-400">🏦</span>
+                            )}
                             <button
                               onClick={() => paymentMutation.mutate({ id: appt.id, data: { payment_status: 'unpaid' } })}
                               className="text-gray-600 hover:text-red-400 text-xs transition-colors"
@@ -217,6 +237,25 @@ export default function Appointments() {
                             >
                               undo
                             </button>
+                          </div>
+                        ) : appt.payment_method === 'bank_transfer' ? (
+                          <div className="flex flex-col gap-1.5">
+                            <span className="text-xs text-blue-400 font-semibold">🏦 {appt.bank_name || 'Bank Transfer'}</span>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => loadScreenshot(appt.id)}
+                                className="text-xs px-2 py-1 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors whitespace-nowrap"
+                              >
+                                📸 View
+                              </button>
+                              <button
+                                onClick={() => verifyMutation.mutate(appt.id)}
+                                disabled={verifyMutation.isPending}
+                                className="text-xs px-2 py-1 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 transition-colors whitespace-nowrap disabled:opacity-50"
+                              >
+                                ✓ Verify
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <button
@@ -233,6 +272,26 @@ export default function Appointments() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Screenshot modal */}
+      {screenshotModal && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setScreenshotModal(null)}>
+          <div className="bg-dark-700 rounded-2xl border border-dark-600 p-4 max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-white font-bold">Bank Transfer Screenshot</h3>
+              <button onClick={() => setScreenshotModal(null)} className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+            <img src={screenshotModal.url} alt="Transfer screenshot" className="w-full rounded-xl object-contain max-h-[60vh]" />
+            <button
+              onClick={() => { verifyMutation.mutate(screenshotModal.id); setScreenshotModal(null); }}
+              disabled={verifyMutation.isPending}
+              className="mt-4 w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-xl transition-colors disabled:opacity-50"
+            >
+              ✓ Verify Payment
+            </button>
           </div>
         </div>
       )}

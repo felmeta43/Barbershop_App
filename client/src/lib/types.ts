@@ -37,12 +37,29 @@ export interface Appointment {
   status: 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
   queue_number?: number;
   payment_status: 'unpaid' | 'paid';
+  payment_method?: 'chapa' | 'bank_transfer';
   payment_tx_ref?: string;
   payment_amount?: number;
+  bank_id?: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_account_name?: string;
+  verified_at?: string;
   notes?: string;
   service_name?: string;
   service_price?: number;
   barber_name?: string;
+  created_at: string;
+}
+
+export interface BankAccount {
+  id: string;
+  bank_name: string;
+  account_number: string;
+  account_name: string;
+  logo_emoji: string;
+  instructions?: string;
+  is_active: boolean;
   created_at: string;
 }
 

@@ -14,6 +14,7 @@ import queueRoutes from './routes/queue';
 import paymentRoutes from './routes/payment';
 import settingsRoutes from './routes/settings';
 import notificationRoutes from './routes/notifications';
+import bankRoutes from './routes/banks';
 
 // Try server/.env first, then project root — works for both tsx and node dist/
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -52,6 +53,7 @@ app.use('/api/queue', queueRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/banks', bankRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

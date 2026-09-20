@@ -51,6 +51,7 @@ export default {
         barber: 'Choose Barber',
         datetime: 'Date & Time',
         details: 'Your Details',
+        payment: 'Payment',
         confirm: 'Confirm',
       },
       service_placeholder: 'Select a service',

@@ -3,8 +3,8 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { servicesApi, barbersApi, appointmentsApi, paymentApi } from '../lib/api';
-import { Service, Barber } from '../lib/types';
+import { servicesApi, barbersApi, appointmentsApi, paymentApi, banksApi } from '../lib/api';
+import { Service, Barber, BankAccount } from '../lib/types';
 import { useShop } from '../context/ShopContext';
 
 const FALLBACK_SLOTS = [
@@ -38,8 +38,27 @@ function localDateStr(offsetDays = 0): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-const STEPS = ['service', 'barber', 'datetime', 'details', 'confirm'] as const;
+const STEPS = ['service', 'barber', 'datetime', 'details', 'payment', 'confirm'] as const;
 type Step = typeof STEPS[number];
+
+async function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1200;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.75));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
 
 interface BookingData {
   service_id: string;
@@ -50,6 +69,9 @@ interface BookingData {
   customer_phone: string;
   customer_email: string;
   notes: string;
+  payment_method: 'chapa' | 'bank_transfer' | '';
+  selected_bank: BankAccount | null;
+  bank_screenshot: string; // base64
 }
 
 export default function Booking() {
@@ -70,10 +92,14 @@ export default function Booking() {
     customer_phone: '',
     customer_email: '',
     notes: '',
+    payment_method: '',
+    selected_bank: null,
+    bank_screenshot: '',
   });
 
   const { data: services = [] } = useQuery<Service[]>({ queryKey: ['services'], queryFn: servicesApi.getAll });
   const { data: barbers = [] } = useQuery<Barber[]>({ queryKey: ['barbers'], queryFn: barbersApi.getAll });
+  const { data: banks = [] } = useQuery<BankAccount[]>({ queryKey: ['banks'], queryFn: banksApi.getAll, refetchInterval: false });
 
   const { data: availability } = useQuery({
     queryKey: ['availability', data.appointment_date, data.barber_id],
@@ -119,7 +145,16 @@ export default function Booking() {
   }, []);
 
   const bookMutation = useMutation({
-    mutationFn: () => appointmentsApi.create({ ...data, lang }),
+    mutationFn: () => appointmentsApi.create({
+      ...data,
+      lang,
+      payment_method: data.payment_method || 'chapa',
+      bank_id: data.selected_bank?.id,
+      bank_name: data.selected_bank?.bank_name,
+      bank_account_number: data.selected_bank?.account_number,
+      bank_account_name: data.selected_bank?.account_name,
+      bank_transfer_screenshot: data.bank_screenshot || undefined,
+    }),
     onSuccess: (result) => {
       setConfirmed(result);
       toast.success(t('booking.booking_confirmed'));
@@ -147,6 +182,11 @@ export default function Booking() {
     if (step === 'barber') return true;
     if (step === 'datetime') return !!data.appointment_date && !!data.appointment_time && !isDayClosed && !selectedBarberUnavailable;
     if (step === 'details') return !!data.customer_name && data.customer_phone.length >= 9;
+    if (step === 'payment') {
+      if (!data.payment_method) return false;
+      if (data.payment_method === 'bank_transfer') return !!data.selected_bank && !!data.bank_screenshot;
+      return true; // chapa — no screenshot needed
+    }
     return true;
   };
 
@@ -193,6 +233,12 @@ export default function Booking() {
               📱 {confirmed.sms_sent ? t('booking.sms_sent') : t('booking.sms_note')}
             </p>
             <div className="space-y-3">
+              {confirmed.payment_method === 'bank_transfer' ? (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 text-blue-300 text-sm text-center">
+                  🏦 Bank transfer screenshot submitted.<br />
+                  <span className="text-blue-400 font-semibold">The admin will verify your payment and confirm your appointment.</span>
+                </div>
+              ) : (
               <button
                 onClick={() => payMutation.mutate()}
                 disabled={payMutation.isPending}
@@ -200,6 +246,7 @@ export default function Booking() {
               >
                 {payMutation.isPending ? t('payment.processing') : `💳 ${t('booking.pay_now')}`}
               </button>
+              )}
               <button
                 onClick={() => navigate('/')}
                 className="w-full bg-dark-600 hover:bg-dark-500 text-gray-300 font-medium py-3 rounded-xl transition-colors"
@@ -424,7 +471,131 @@ export default function Booking() {
             </div>
           )}
 
-          {/* Step 5: Confirm */}
+          {/* Step 5: Payment */}
+          {step === 'payment' && (
+            <div className="animate-fade-in">
+              <h2 className="text-white font-bold text-xl mb-6">Choose Payment Method</h2>
+
+              {/* Method selector */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                {[
+                  { value: 'bank_transfer', icon: '🏦', label: 'Bank Transfer', sub: 'Transfer & upload screenshot' },
+                  { value: 'chapa', icon: '💳', label: 'Pay Online', sub: 'Chapa — card / mobile money' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setData((d) => ({ ...d, payment_method: opt.value as any, selected_bank: null, bank_screenshot: '' }))}
+                    className={`p-4 rounded-xl border text-left transition-all ${
+                      data.payment_method === opt.value
+                        ? 'bg-barber-500/20 border-barber-500 text-white'
+                        : 'bg-dark-600 border-dark-500 text-gray-300 hover:border-barber-500/40'
+                    }`}
+                  >
+                    <div className="text-2xl mb-1">{opt.icon}</div>
+                    <div className="font-semibold">{opt.label}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{opt.sub}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Bank transfer flow */}
+              {data.payment_method === 'bank_transfer' && (
+                <div className="space-y-4">
+                  {banks.length === 0 ? (
+                    <div className="bg-dark-600 rounded-xl p-4 text-gray-500 text-sm text-center">
+                      No bank accounts configured yet. Please contact the shop.
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-gray-400 text-sm font-medium">Select a bank to transfer to:</p>
+                      <div className="space-y-2">
+                        {banks.map((bank) => (
+                          <button
+                            key={bank.id}
+                            onClick={() => setData((d) => ({ ...d, selected_bank: bank }))}
+                            className={`w-full p-4 rounded-xl border text-left transition-all ${
+                              data.selected_bank?.id === bank.id
+                                ? 'bg-barber-500/20 border-barber-500'
+                                : 'bg-dark-600 border-dark-500 hover:border-barber-500/40'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{bank.logo_emoji}</span>
+                              <div>
+                                <div className="text-white font-semibold">{bank.bank_name}</div>
+                                <div className="text-gray-400 text-xs">{bank.account_name}</div>
+                              </div>
+                              <div className="ml-auto text-right">
+                                <div className="text-barber-400 font-mono text-sm">{bank.account_number}</div>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+
+                      {data.selected_bank && (
+                        <div className="bg-barber-500/10 border border-barber-500/30 rounded-xl p-4 space-y-2 text-sm">
+                          <p className="text-barber-400 font-semibold">Transfer Details</p>
+                          <div className="flex justify-between"><span className="text-gray-400">Bank</span><span className="text-white">{data.selected_bank.bank_name}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-400">Account No.</span><span className="text-white font-mono">{data.selected_bank.account_number}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-400">Account Name</span><span className="text-white">{data.selected_bank.account_name}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-400">Amount</span><span className="text-barber-400 font-bold">{selectedService?.price} {currencySymbol}</span></div>
+                          {data.selected_bank.instructions && (
+                            <p className="text-gray-500 text-xs pt-1 border-t border-barber-500/20">{data.selected_bank.instructions}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {data.selected_bank && (
+                        <div>
+                          <p className="text-gray-400 text-sm font-medium mb-2">Upload transfer screenshot:</p>
+                          <label className={`flex flex-col items-center justify-center w-full h-36 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
+                            data.bank_screenshot ? 'border-green-500/50 bg-green-500/10' : 'border-dark-500 bg-dark-600 hover:border-barber-500/50'
+                          }`}>
+                            {data.bank_screenshot ? (
+                              <div className="flex flex-col items-center gap-2">
+                                <img src={data.bank_screenshot} alt="screenshot" className="h-24 rounded-lg object-contain" />
+                                <span className="text-green-400 text-xs">✓ Screenshot uploaded — click to change</span>
+                              </div>
+                            ) : (
+                              <div className="text-center">
+                                <div className="text-3xl mb-1">📸</div>
+                                <div className="text-gray-400 text-sm">Click to upload screenshot</div>
+                                <div className="text-gray-600 text-xs mt-0.5">JPG, PNG or PDF</div>
+                              </div>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                try {
+                                  const compressed = await compressImage(file);
+                                  setData((d) => ({ ...d, bank_screenshot: compressed }));
+                                } catch {
+                                  toast.error('Failed to process image');
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {data.payment_method === 'chapa' && (
+                <div className="bg-dark-600 rounded-xl p-4 text-gray-400 text-sm">
+                  💳 You'll be redirected to Chapa to complete payment after confirming your booking.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 6: Confirm */}
           {step === 'confirm' && (
             <div className="animate-fade-in">
               <h2 className={`text-white font-bold text-xl mb-6 ${lang === 'am' ? 'font-amharic' : ''}`}>
@@ -439,6 +610,7 @@ export default function Booking() {
                   { label: t('admin.name'), val: data.customer_name },
                   { label: t('admin.phone'), val: data.customer_phone },
                   { label: t('payment.amount'), val: `${selectedService?.price || 0} ${currencySymbol}` },
+                  { label: 'Payment', val: data.payment_method === 'bank_transfer' ? `🏦 Bank Transfer (${data.selected_bank?.bank_name})` : '💳 Pay Online (Chapa)' },
                 ].map((r) => (
                   <div key={r.label} className="flex justify-between py-3 border-b border-dark-600">
                     <span className="text-gray-400">{r.label}</span>

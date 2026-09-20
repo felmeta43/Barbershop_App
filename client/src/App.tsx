@@ -16,6 +16,7 @@ import QueueManagement from './pages/Admin/QueueManagement';
 import Appointments from './pages/Admin/Appointments';
 import ServicesAdmin from './pages/Admin/ServicesAdmin';
 import BarbersAdmin from './pages/Admin/BarbersAdmin';
+import BanksAdmin from './pages/Admin/BanksAdmin';
 import ShopSettingsPage from './pages/Admin/ShopSettings';
 import ProtectedRoute from './pages/Admin/ProtectedRoute';
 
@@ -65,6 +66,7 @@ export default function App() {
               <Route path="appointments" element={<Appointments />} />
               <Route path="services" element={<ServicesAdmin />} />
               <Route path="barbers" element={<BarbersAdmin />} />
+              <Route path="banks" element={<BanksAdmin />} />
               <Route path="settings" element={<ShopSettingsPage />} />
             </Route>
 

@@ -26,6 +26,13 @@ const appointmentSchema = z.object({
   appointment_time: z.string().regex(/^\d{2}:\d{2}$/),
   notes: z.string().optional(),
   lang: z.enum(['en', 'am', 'om']).default('en'),
+  // Bank transfer fields (optional)
+  payment_method: z.enum(['chapa', 'bank_transfer']).default('chapa'),
+  bank_id: z.string().optional(),
+  bank_name: z.string().optional(),
+  bank_account_number: z.string().optional(),
+  bank_account_name: z.string().optional(),
+  bank_transfer_screenshot: z.string().optional(), // base64 data URL
 });
 
 router.post('/', bookingLimiter, async (req: Request, res: Response) => {
@@ -76,12 +83,26 @@ router.post('/', bookingLimiter, async (req: Request, res: Response) => {
       payment_status: 'unpaid',
       payment_tx_ref: null,
       payment_amount: service.price,
+      payment_method: data.payment_method || 'chapa',
+      bank_id: data.bank_id || null,
+      bank_name: data.bank_name || null,
+      bank_account_number: data.bank_account_number || null,
+      bank_account_name: data.bank_account_name || null,
       notes: data.notes || null,
       created_at: new Date().toISOString(),
     };
 
     // Add appointment
     await db.collection('appointments').doc(id).set(appointment);
+
+    // Store screenshot separately (Firestore 1MB doc limit)
+    if (data.payment_method === 'bank_transfer' && data.bank_transfer_screenshot) {
+      await db.collection('payment_screenshots').doc(id).set({
+        appointment_id: id,
+        screenshot: data.bank_transfer_screenshot,
+        uploaded_at: new Date().toISOString(),
+      });
+    }
 
     // Add to queue (denormalized)
     const queueId = uuidv4();
@@ -232,6 +253,39 @@ router.patch('/:id/status', authenticate, async (req: AuthRequest, res: Response
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+// GET /:id/bank-screenshot — admin only, returns screenshot for a bank transfer
+router.get('/:id/bank-screenshot', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const doc = await db.collection('payment_screenshots').doc(req.params.id).get();
+    if (!doc.exists) { res.status(404).json({ error: 'No screenshot found' }); return; }
+    res.json(doc.data());
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch screenshot' });
+  }
+});
+
+// PATCH /:id/verify-bank-transfer — admin verifies and marks payment as paid
+router.patch('/:id/verify-bank-transfer', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const doc = await db.collection('appointments').doc(req.params.id).get();
+    if (!doc.exists) { res.status(404).json({ error: 'Appointment not found' }); return; }
+
+    const updates = {
+      payment_status: 'paid',
+      verified_at: new Date().toISOString(),
+      verified_by: (req as any).user?.username || 'admin',
+    };
+    await db.collection('appointments').doc(req.params.id).update(updates);
+
+    const qSnap = await db.collection('queue').where('appointment_id', '==', req.params.id).limit(1).get();
+    if (!qSnap.empty) await qSnap.docs[0].ref.update({ payment_status: 'paid' });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to verify payment' });
   }
 });
 
