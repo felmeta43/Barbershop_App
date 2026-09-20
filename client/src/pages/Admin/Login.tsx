@@ -23,7 +23,7 @@ export default function AdminLogin() {
       const res = await authApi.login(username, password);
       localStorage.setItem('admin_token', res.token);
       localStorage.setItem('admin_user', JSON.stringify(res.user));
-      navigate('/admin/dashboard');
+      navigate('/admin/appointments');
     } catch (err: any) {
       if (err?.response?.status === 401) {
         toast.error('Invalid username or password');

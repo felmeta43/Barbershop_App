@@ -280,7 +280,7 @@ export default function Booking() {
                 onClick={() => navigate('/')}
                 className="w-full bg-dark-600 hover:bg-dark-500 text-gray-300 font-medium py-3 rounded-xl transition-colors"
               >
-                {t('booking.pay_later')}
+                {t('payment.go_home')}
               </button>
             </div>
           </div>

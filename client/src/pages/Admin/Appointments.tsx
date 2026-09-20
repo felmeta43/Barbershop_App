@@ -42,6 +42,12 @@ export default function Appointments() {
     onError: () => toast.error('Failed to verify'),
   });
 
+  const declineMutation = useMutation({
+    mutationFn: (id: string) => appointmentsApi.updatePayment(id, { payment_status: 'declined' }),
+    onSuccess: () => { toast.success('Payment declined'); invalidate(); },
+    onError: () => toast.error('Failed to decline'),
+  });
+
   const loadScreenshot = async (id: string) => {
     try {
       const data = await banksApi.getScreenshot(id);
@@ -238,10 +244,23 @@ export default function Appointments() {
                               undo
                             </button>
                           </div>
+                        ) : appt.payment_status === 'declined' ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-red-500/20 text-red-400">
+                              ✕ Declined
+                            </span>
+                            <button
+                              onClick={() => paymentMutation.mutate({ id: appt.id, data: { payment_status: 'unpaid' } })}
+                              className="text-gray-600 hover:text-gray-300 text-xs transition-colors"
+                              title="Reset to unpaid"
+                            >
+                              undo
+                            </button>
+                          </div>
                         ) : appt.payment_method === 'bank_transfer' ? (
                           <div className="flex flex-col gap-1.5">
                             <span className="text-xs text-blue-400 font-semibold">🏦 {appt.bank_name || 'Bank Transfer'}</span>
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 flex-wrap">
                               <button
                                 onClick={() => loadScreenshot(appt.id)}
                                 className="text-xs px-2 py-1 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors whitespace-nowrap"
@@ -250,10 +269,17 @@ export default function Appointments() {
                               </button>
                               <button
                                 onClick={() => verifyMutation.mutate(appt.id)}
-                                disabled={verifyMutation.isPending}
+                                disabled={verifyMutation.isPending || declineMutation.isPending}
                                 className="text-xs px-2 py-1 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 transition-colors whitespace-nowrap disabled:opacity-50"
                               >
                                 ✓ Verify
+                              </button>
+                              <button
+                                onClick={() => declineMutation.mutate(appt.id)}
+                                disabled={verifyMutation.isPending || declineMutation.isPending}
+                                className="text-xs px-2 py-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30 transition-colors whitespace-nowrap disabled:opacity-50"
+                              >
+                                ✕ Decline
                               </button>
                             </div>
                           </div>
@@ -285,13 +311,22 @@ export default function Appointments() {
               <button onClick={() => setScreenshotModal(null)} className="text-gray-500 hover:text-white text-xl">✕</button>
             </div>
             <img src={screenshotModal.url} alt="Transfer screenshot" className="w-full rounded-xl object-contain max-h-[60vh]" />
-            <button
-              onClick={() => { verifyMutation.mutate(screenshotModal.id); setScreenshotModal(null); }}
-              disabled={verifyMutation.isPending}
-              className="mt-4 w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-xl transition-colors disabled:opacity-50"
-            >
-              ✓ Verify Payment
-            </button>
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => { verifyMutation.mutate(screenshotModal.id); setScreenshotModal(null); }}
+                disabled={verifyMutation.isPending || declineMutation.isPending}
+                className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-xl transition-colors disabled:opacity-50"
+              >
+                ✓ Verify Payment
+              </button>
+              <button
+                onClick={() => { declineMutation.mutate(screenshotModal.id); setScreenshotModal(null); }}
+                disabled={verifyMutation.isPending || declineMutation.isPending}
+                className="flex-1 bg-red-700 hover:bg-red-600 text-white font-bold py-2.5 rounded-xl transition-colors disabled:opacity-50"
+              >
+                ✕ Decline
+              </button>
+            </div>
           </div>
         </div>
       )}

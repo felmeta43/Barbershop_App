@@ -17,6 +17,7 @@ import Appointments from './pages/Admin/Appointments';
 import ServicesAdmin from './pages/Admin/ServicesAdmin';
 import BarbersAdmin from './pages/Admin/BarbersAdmin';
 import BanksAdmin from './pages/Admin/BanksAdmin';
+import Revenue from './pages/Admin/Revenue';
 import ShopSettingsPage from './pages/Admin/ShopSettings';
 import ProtectedRoute from './pages/Admin/ProtectedRoute';
 
@@ -61,12 +62,14 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
+              <Route index element={<Navigate to="appointments" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="queue" element={<QueueManagement />} />
               <Route path="appointments" element={<Appointments />} />
               <Route path="services" element={<ServicesAdmin />} />
               <Route path="barbers" element={<BarbersAdmin />} />
               <Route path="banks" element={<BanksAdmin />} />
+              <Route path="revenue" element={<Revenue />} />
               <Route path="settings" element={<ShopSettingsPage />} />
             </Route>
 
