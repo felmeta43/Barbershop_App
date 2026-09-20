@@ -68,13 +68,6 @@ export default function Navbar() {
             >
               {t('nav.book')}
             </Link>
-            <Link
-              to="/admin"
-              className="hidden md:block text-gray-500 hover:text-gray-300 text-xs transition-colors"
-            >
-              {t('nav.admin')}
-            </Link>
-
             <button
               onClick={() => setOpen(!open)}
               className="md:hidden p-2 text-gray-400 hover:text-white"
@@ -106,13 +99,6 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <Link
-              to="/admin"
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2 text-sm text-gray-500 hover:text-gray-300"
-            >
-              {t('nav.admin')}
-            </Link>
           </div>
         )}
       </div>
