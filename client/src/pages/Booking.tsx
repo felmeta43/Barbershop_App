@@ -42,20 +42,46 @@ const STEPS = ['service', 'barber', 'datetime', 'details', 'payment', 'confirm']
 type Step = typeof STEPS[number];
 
 async function compressImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
+  // Try canvas compression first; fall back to raw base64 if it fails
+  // (HEIC from iPhone or canvas security errors on some mobile browsers)
+  const readAsDataURL = (): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
+
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const MAX = 1200;
-      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.75));
+      try {
+        const MAX = 1200;
+        const scale = Math.min(1, MAX / Math.max(img.width || 1, img.height || 1));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('no ctx');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const result = canvas.toDataURL('image/jpeg', 0.75);
+        // If canvas gives back a blank/tiny result, fall back to FileReader
+        if (result.length < 1000) throw new Error('blank canvas');
+        resolve(result);
+      } catch {
+        readAsDataURL().then(resolve).catch(() => resolve(''));
+      }
     };
-    img.onerror = reject;
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      // Canvas approach failed entirely (e.g. HEIC) — use FileReader
+      readAsDataURL().then(resolve).catch(() => resolve(''));
+    };
+
     img.src = url;
   });
 }
@@ -566,17 +592,17 @@ export default function Booking() {
                             )}
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
                               className="hidden"
                               onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (!file) return;
-                                try {
-                                  const compressed = await compressImage(file);
-                                  setData((d) => ({ ...d, bank_screenshot: compressed }));
-                                } catch {
-                                  toast.error('Failed to process image');
+                                const result = await compressImage(file);
+                                if (!result) {
+                                  toast.error('Could not read image. Please try a JPG or PNG file.');
+                                  return;
                                 }
+                                setData((d) => ({ ...d, bank_screenshot: result }));
                               }}
                             />
                           </label>

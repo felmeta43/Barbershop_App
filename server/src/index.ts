@@ -22,6 +22,9 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
 const app = express();
+// Required when running behind Render.com / Nginx proxy — lets express-rate-limit
+// read the real client IP from X-Forwarded-For instead of the proxy's address.
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
 
