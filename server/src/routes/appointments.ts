@@ -2,11 +2,28 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
+import sharp from 'sharp';
 import type { Query, DocumentData } from 'firebase-admin/firestore';
 import type { SendResponse } from 'firebase-admin/messaging';
 import { db, messaging } from '../firebase';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { sendBookingConfirmation } from '../services/smsService';
+
+// Compress a base64 data URL to a JPEG under 700 KB using sharp.
+// Returns the compressed data URL, or the original if anything fails.
+async function compressScreenshot(dataUrl: string): Promise<string> {
+  try {
+    const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64, 'base64');
+    const compressed = await sharp(buffer)
+      .resize({ width: 700, height: 700, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 55 })
+      .toBuffer();
+    return `data:image/jpeg;base64,${compressed.toString('base64')}`;
+  } catch {
+    return dataUrl;
+  }
+}
 
 const router = Router();
 
@@ -95,11 +112,13 @@ router.post('/', bookingLimiter, async (req: Request, res: Response) => {
     // Add appointment
     await db.collection('appointments').doc(id).set(appointment);
 
-    // Store screenshot separately (Firestore 1MB doc limit)
+    // Store screenshot separately (Firestore 1MB doc limit).
+    // Always compress server-side regardless of what the client sent.
     if (data.payment_method === 'bank_transfer' && data.bank_transfer_screenshot) {
+      const screenshotToStore = await compressScreenshot(data.bank_transfer_screenshot);
       await db.collection('payment_screenshots').doc(id).set({
         appointment_id: id,
-        screenshot: data.bank_transfer_screenshot,
+        screenshot: screenshotToStore,
         uploaded_at: new Date().toISOString(),
       });
     }
