@@ -36,7 +36,7 @@ export interface Appointment {
   appointment_time: string;
   status: 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
   queue_number?: number;
-  payment_status: 'unpaid' | 'paid';
+  payment_status: 'unpaid' | 'paid' | 'declined';
   payment_method?: 'chapa' | 'bank_transfer';
   payment_tx_ref?: string;
   payment_amount?: number;
