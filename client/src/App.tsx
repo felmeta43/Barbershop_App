@@ -20,6 +20,7 @@ import BanksAdmin from './pages/Admin/BanksAdmin';
 import Revenue from './pages/Admin/Revenue';
 import ShopSettingsPage from './pages/Admin/ShopSettings';
 import ProtectedRoute from './pages/Admin/ProtectedRoute';
+import { ThemeProvider } from './context/ThemeContext';
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -44,6 +45,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <QueryClientProvider client={qc}>
+      <ThemeProvider>
       <ShopProvider>
         <BrowserRouter>
           <Routes>
@@ -83,6 +85,7 @@ export default function App() {
           }}
         />
       </ShopProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 @layer base {
+  /* ── Barber accent palette ─────────────────────────────────── */
   :root {
     --barber-50:  254 249 236;
     --barber-100: 254 240 199;
@@ -14,7 +15,37 @@
     --barber-700: 163 88 0;
     --barber-800: 134 68 0;
     --barber-900: 113 58 0;
+
+    /* ── Dark theme (default) ──────────────────────────────────── */
+    --dark-900: 10 10 10;
+    --dark-800: 17 17 17;
+    --dark-700: 26 26 26;
+    --dark-600: 34 34 34;
+    --dark-500: 42 42 42;
+    --dark-400: 51 51 51;
+    --text-base: 255 255 255;
   }
+
+  /* ── Light theme ───────────────────────────────────────────── */
+  [data-theme="light"] {
+    --dark-900: 248 250 252;
+    --dark-800: 241 245 249;
+    --dark-700: 255 255 255;
+    --dark-600: 226 232 240;
+    --dark-500: 203 213 225;
+    --dark-400: 148 163 184;
+    --text-base: 15 23 42;
+  }
+
+  /* Text colour overrides for light theme */
+  [data-theme="light"] body       { color: rgb(15 23 42); }
+  [data-theme="light"] .text-white { color: rgb(15 23 42) !important; }
+  [data-theme="light"] .text-gray-300 { color: rgb(51 65 85)  !important; }
+  [data-theme="light"] .text-gray-400 { color: rgb(71 85 105) !important; }
+  [data-theme="light"] .text-gray-500 { color: rgb(100 116 139) !important; }
+  [data-theme="light"] .text-gray-600 { color: rgb(148 163 184) !important; }
+  [data-theme="light"] select option { background: rgb(255 255 255); color: rgb(15 23 42); }
+  [data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator { filter: none; }
 
   * {
     -webkit-tap-highlight-color: transparent;

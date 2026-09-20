@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '../../components/LanguageSwitcher';
+import ThemeToggle from '../../components/ThemeToggle';
 import { useShop } from '../../context/ShopContext';
 import { requestNotificationPermission } from '../../firebase';
 import api from '../../lib/api';
@@ -88,6 +89,7 @@ export default function AdminLayout() {
         </nav>
 
         <div className="p-4 border-t border-dark-600 space-y-3">
+          <ThemeToggle />
           <LanguageSwitcher />
           <div className="flex items-center justify-between">
             <div className="text-gray-400 text-sm">{user.username}</div>

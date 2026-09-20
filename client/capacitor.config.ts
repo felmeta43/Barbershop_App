@@ -13,9 +13,15 @@ const config: CapacitorConfig = {
     // androidScheme: 'https',
   },
   android: {
-    // Allows cleartext (HTTP) for local network use during development
-    // Remove or set to false for production with HTTPS
     allowMixedContent: true,
+  },
+  plugins: {
+    StatusBar: {
+      // Prevent the WebView from drawing behind the status bar
+      overlaysWebView: false,
+      style: 'DARK',
+      backgroundColor: '#111111',
+    },
   },
 };
 

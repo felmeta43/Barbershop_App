@@ -17,12 +17,12 @@ export default {
           900: 'rgb(var(--barber-900) / <alpha-value>)',
         },
         dark: {
-          900: '#0a0a0a',
-          800: '#111111',
-          700: '#1a1a1a',
-          600: '#222222',
-          500: '#2a2a2a',
-          400: '#333333',
+          900: 'rgb(var(--dark-900) / <alpha-value>)',
+          800: 'rgb(var(--dark-800) / <alpha-value>)',
+          700: 'rgb(var(--dark-700) / <alpha-value>)',
+          600: 'rgb(var(--dark-600) / <alpha-value>)',
+          500: 'rgb(var(--dark-500) / <alpha-value>)',
+          400: 'rgb(var(--dark-400) / <alpha-value>)',
         },
       },
       fontFamily: {
