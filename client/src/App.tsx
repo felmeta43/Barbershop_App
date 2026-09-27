@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
@@ -10,6 +11,7 @@ import Services from './pages/Services';
 import Booking from './pages/Booking';
 import Queue from './pages/Queue';
 import PaymentCallback from './pages/PaymentCallback';
+import DeviceVerification from './pages/DeviceVerification';
 import AdminLogin from './pages/Admin/Login';
 import AdminLayout from './pages/Admin/Layout';
 import AdminDashboard from './pages/Admin/Dashboard';
@@ -20,19 +22,28 @@ import BarbersAdmin from './pages/Admin/BarbersAdmin';
 import BanksAdmin from './pages/Admin/BanksAdmin';
 import Revenue from './pages/Admin/Revenue';
 import ShopSettingsPage from './pages/Admin/ShopSettings';
+import DeviceCodesPage from './pages/Admin/DeviceCodes';
 import ProtectedRoute from './pages/Admin/ProtectedRoute';
 import { ThemeProvider } from './context/ThemeContext';
 
 const qc = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0,          // always consider data stale so refetch fires on focus
-      refetchInterval: 10000, // poll every 10 seconds while tab is open
+      staleTime: 0,
+      refetchInterval: 10000,
       refetchOnWindowFocus: true,
       retry: 1,
     },
   },
 });
+
+// Only require device verification on native Capacitor platforms (APK/IPA).
+// On the web browser, admins and developers can access freely.
+const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+
+function isVerified(): boolean {
+  return localStorage.getItem('device_verified') === 'true';
+}
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -47,6 +58,20 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const [verified, setVerified] = useState<boolean>(!isNative || isVerified());
+
+  if (!verified) {
+    return (
+      <QueryClientProvider client={qc}>
+        <ThemeProvider>
+          <ShopProvider>
+            <DeviceVerification onVerified={() => setVerified(true)} />
+          </ShopProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={qc}>
       <ThemeProvider>
@@ -76,6 +101,7 @@ export default function App() {
               <Route path="banks" element={<BanksAdmin />} />
               <Route path="revenue" element={<Revenue />} />
               <Route path="settings" element={<ShopSettingsPage />} />
+              <Route path="devices" element={<DeviceCodesPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

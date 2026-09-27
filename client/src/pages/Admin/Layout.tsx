@@ -39,6 +39,7 @@ export default function AdminLayout() {
     { to: '/admin/barbers', icon: '👨', label: t('admin.barbers') },
     { to: '/admin/banks', icon: '🏦', label: 'Bank Accounts' },
     { to: '/admin/revenue', icon: '💰', label: 'Revenue' },
+    { to: '/admin/devices', icon: '📱', label: 'Device Codes' },
     { to: '/admin/settings', icon: '⚙️', label: 'Shop Settings' },
   ];
 
