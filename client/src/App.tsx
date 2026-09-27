@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import './i18n';
 import { ShopProvider } from './context/ShopContext';
 import Navbar from './components/Navbar';
+import BottomNav from './components/BottomNav';
 import Home from './pages/Home';
 import Services from './pages/Services';
 import Booking from './pages/Booking';
@@ -37,7 +38,10 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Navbar />
-      {children}
+      <div className="content-with-bottom-nav md:pb-0">
+        {children}
+      </div>
+      <BottomNav />
     </>
   );
 }

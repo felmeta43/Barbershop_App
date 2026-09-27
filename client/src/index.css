@@ -49,6 +49,13 @@
 
   * {
     -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  /* Viewport meta should set this, but ensure body fills exactly the screen */
+  html, body {
+    min-height: 100%;
+    overflow-x: hidden;
   }
 
   body {
@@ -93,5 +100,15 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  /* Safe-area padding for bottom navigation on notched/pill-home phones */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Ensure pages never overlap the bottom nav on any screen height */
+  .content-with-bottom-nav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
   }
 }
